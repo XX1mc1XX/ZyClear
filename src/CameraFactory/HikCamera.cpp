@@ -2,8 +2,9 @@
 #include "opencv2/opencv.hpp"
 #include <QCoreApplication>
 #include <QDebug>
+#include <QDir>
 
-const QString HikCamera::VIRTUAL_CAMERA_VENDER = "Hikrobot";
+const QString HikCamera::HIK_CAMERA_VENDER = "Hikrobot";
 
 bool IsColor(MvGvspPixelType enType)
 {
@@ -61,57 +62,50 @@ bool IsMono(MvGvspPixelType enType)
 bool HikConvert2Mat(void* handle, MV_FRAME_OUT_INFO_EX* pstImageInfo, unsigned char* pData, cv::Mat& dstImage)
 {
     if (NULL == pstImageInfo || NULL == pData) {
-        printf("NULL info or data.\n");
+        qWarning() << "HikConvert2Mat: null frame info or data";
         return false;
     }
 
     MvGvspPixelType enDstPixelType = PixelType_Gvsp_Undefined;
+    int nDstType = 0;
 
     if (IsMono(pstImageInfo->enPixelType)) {
         enDstPixelType = PixelType_Gvsp_Mono8;
+        nDstType = CV_8UC1;
     }
 
     else if (IsColor(pstImageInfo->enPixelType)) {
         enDstPixelType = PixelType_Gvsp_RGB8_Packed;
+        nDstType = CV_8UC3;
     }
 
-    if (enDstPixelType != PixelType_Gvsp_Undefined) {
+    if (enDstPixelType == PixelType_Gvsp_Undefined) {
+        qWarning() << "Unsupported pixel format:" << pstImageInfo->enPixelType;
+        return false;
+    }
 
-        unsigned char* pConvertData = NULL;
-        unsigned int nConvertDataSize = 0;
-        int nChannelNum = 3;
-        pConvertData = (unsigned char*)malloc(pstImageInfo->nWidth * pstImageInfo->nHeight * nChannelNum);
-        if (NULL == pConvertData) {
-            qDebug() << "malloc pConvertData fail!";
-            return false;
-        }
-        nConvertDataSize = pstImageInfo->nWidth * pstImageInfo->nHeight * nChannelNum;
+    // 目标缓冲区交给 cv::Mat 自持：create() 在尺寸与类型不变时不重新分配，
+    // 转换结果直接写入 Mat 内存，不再手工 malloc/free，避免每帧堆泄漏
+    dstImage.create(pstImageInfo->nHeight, pstImageInfo->nWidth, nDstType);
+    if (!dstImage.isContinuous()) {
+        qWarning() << "HikConvert2Mat: dst mat is not continuous";
+        return false;
+    }
 
-        MV_CC_PIXEL_CONVERT_PARAM stConvertParam = { 0 };
+    MV_CC_PIXEL_CONVERT_PARAM stConvertParam = { 0 };
 
-        stConvertParam.nWidth = pstImageInfo->nWidth;
-        stConvertParam.nHeight = pstImageInfo->nHeight;
-        stConvertParam.pSrcData = pData;
-        stConvertParam.nSrcDataLen = pstImageInfo->nFrameLen;
-        stConvertParam.enSrcPixelType = pstImageInfo->enPixelType;
-        stConvertParam.enDstPixelType = enDstPixelType;
-        stConvertParam.pDstBuffer = pConvertData;
-        stConvertParam.nDstBufferSize = nConvertDataSize;
-        auto nRet = MV_CC_ConvertPixelType(handle, &stConvertParam);
-        if (MV_OK != nRet) {
-            qDebug() << "Convert Pixel Type fail!";
-            return false;
-        }
+    stConvertParam.nWidth = pstImageInfo->nWidth;
+    stConvertParam.nHeight = pstImageInfo->nHeight;
+    stConvertParam.pSrcData = pData;
+    stConvertParam.nSrcDataLen = pstImageInfo->nFrameLen;
+    stConvertParam.enSrcPixelType = pstImageInfo->enPixelType;
+    stConvertParam.enDstPixelType = enDstPixelType;
+    stConvertParam.pDstBuffer = dstImage.data;
+    stConvertParam.nDstBufferSize = static_cast<unsigned int>(dstImage.total() * dstImage.elemSize());
 
-        if (IsMono(pstImageInfo->enPixelType)) {
-            dstImage = cv::Mat(pstImageInfo->nHeight, pstImageInfo->nWidth, CV_8UC1, pConvertData);
-        }
-
-        else if (IsColor(pstImageInfo->enPixelType)) {
-            dstImage = cv::Mat(pstImageInfo->nHeight, pstImageInfo->nWidth, CV_8UC3, pConvertData);
-        }
-    } else {
-        qDebug() << "Unsupported pixel format!";
+    auto nRet = MV_CC_ConvertPixelType(handle, &stConvertParam);
+    if (MV_OK != nRet) {
+        qWarning() << "Convert Pixel Type fail! ret =" << nRet;
         return false;
     }
 
@@ -128,10 +122,10 @@ void __stdcall ImageCallBack(unsigned char* pData, MV_FRAME_OUT_INFO_EX* pFrameI
         return;
 
     cv::Mat cvImage;
-    HikConvert2Mat(pCamera->CameraHandle(), pFrameInfo, pData, cvImage);
+    if (!HikConvert2Mat(pCamera->CameraHandle(), pFrameInfo, pData, cvImage))
+        return;
 
     pCamera->ImageQueue().Put(cvImage);
-    qDebug() << "Get One Frame: Width:" << pFrameInfo->nWidth << " Height:" << pFrameInfo->nHeight;
 }
 
 HikCamera::HikCamera(const CameraMetaInfo& info)
@@ -148,8 +142,10 @@ uint32_t HikCamera::EnumCamera(QVector<CameraMetaInfo>& cameraInfos)
 
     static bool logPathSet = false;
     if (!logPathSet) {
-        QByteArray exeDir = QCoreApplication::applicationDirPath().toLocal8Bit();
-        MV_CC_SetSDKLogPath(exeDir.constData());
+        const QString logDir = QCoreApplication::applicationDirPath() + QStringLiteral("/MvSDKLog");
+        QDir().mkpath(logDir);
+        QByteArray logPath = logDir.toLocal8Bit();
+        MV_CC_SetSDKLogPath(logPath.constData());
         logPathSet = true;
     }
 

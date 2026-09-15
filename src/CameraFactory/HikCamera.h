@@ -7,7 +7,7 @@
 class HikCamera
     : public CameraInterface {
 public:
-    static const QString VIRTUAL_CAMERA_VENDER;
+    static const QString HIK_CAMERA_VENDER;
     HikCamera(const CameraMetaInfo& info);
     ~HikCamera();
 
