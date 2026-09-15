@@ -1,0 +1,249 @@
+[
+  {
+    "group": "DeviceControl",
+    "params": [
+      {
+        "name": "DeviceVendorName",
+        "type": "STRING",
+        "relative_list": "",
+        "tips": "设备制造商名称"
+      },
+      {
+        "name": "DeviceUserID",
+        "type": "STRING",
+        "relative_list": "",
+        "tips": "设备名称，默认为空，可自行设置"
+      },
+      {
+        "name": "DeviceSerialNumber",
+        "type": "STRING",
+        "relative_list": "",
+        "tips": "设备序列号"
+      }
+    ]
+  },
+  {
+    "group": "ImageFormatControl",
+    "params": [
+      {
+        "name": "WidthMax",
+        "type": "INT",
+        "relative_list": "",
+        "tips": "最大宽度"
+      },
+      {
+        "name": "HeightMax",
+        "type": "INT",
+        "relative_list": "",
+        "tips": "最大高度"
+      },
+      {
+        "name": "Width",
+        "type": "INT",
+        "relative_list": "",
+        "tips": "ROI 区域横向的分辨率"
+      },
+      {
+        "name": "Height",
+        "type": "INT",
+        "relative_list": "",
+        "tips": "ROI 区域纵向的分辨率"
+      },
+      {
+        "name": "OffsetX",
+        "type": "INT",
+        "relative_list": "",
+        "tips": "ROI 区域左上角起点位置的横坐标"
+      },
+      {
+        "name": "OffsetY",
+        "type": "INT",
+        "relative_list": "",
+        "tips": "ROI 区域左上角起点位置的纵坐标"
+      },
+      {
+        "name": "ReverseX",
+        "type": "BOOL",
+        "relative_list": "",
+        "tips": "相机图像左右翻转"
+      },
+      {
+        "name": "ReverseY",
+        "type": "BOOL",
+        "relative_list": "",
+        "tips": "相机图像上下翻转"
+      },
+      {
+        "name": "PixelFormat",
+        "type": "ENUM",
+        "relative_list": "",
+        "tips": "相机支持多种像素格式，用户可根据需要自行设置像素格式"
+      }
+    ]
+  },
+  {
+    "group": "AcquisitionControl",
+    "params": [
+      {
+        "name": "AcquisitionMode",
+        "type": "ENUM",
+        "relative_list": "",
+        "tips": "采集模式"
+      },
+      {
+        "name": "AcquisitionStart",
+        "type": "CMD",
+        "relative_list": "",
+        "tips": "开始采集"
+      },
+      {
+        "name": "AcquisitionStop",
+        "type": "CMD",
+        "relative_list": "",
+        "tips": "停止采集"
+      },
+      {
+        "name": "AcquisitionFrameRateEnable",
+        "type": "BOOL",
+        "relative_list": "",
+        "tips": "帧率使能"
+      },
+      {
+        "name": "AcquisitionFrameRate",
+        "type": "DOUBLE",
+        "relative_list": "",
+        "tips": "需求帧率"
+      },
+      {
+        "name": "TriggerSelector",
+        "type": "ENUM",
+        "relative_list": "",
+        "tips": "触发选项"
+      },
+      {
+        "name": "TriggerMode",
+        "type": "ENUM",
+        "relative_list": "",
+        "tips": "触发模式"
+      },
+      {
+        "name": "TriggerSoftware",
+        "type": "CMD",
+        "relative_list": "",
+        "tips": "软触发"
+      },
+      {
+        "name": "TriggerSource",
+        "type": "ENUM",
+        "relative_list": "",
+        "tips": "触发源设置"
+      },
+      {
+        "name": "ExposureTime",
+        "type": "DOUBLE",
+        "relative_list": "",
+        "tips": "曝光设置"
+      }
+    ]
+  },
+  {
+    "group": "AnalogControl",
+    "params": [
+      {
+        "name": "Gain",
+        "type": "DOUBLE",
+        "relative_list": "",
+        "tips": "增益设置"
+      },
+      {
+        "name": "BlackLevel",
+        "type": "INT",
+        "relative_list": "",
+        "tips": "黑电平设置"
+      },
+      {
+        "name": "BlackLevelEnable",
+        "type": "BOOL",
+        "relative_list": "",
+        "tips": "黑电平设置使能"
+      },
+      {
+        "name": "BalanceWhiteAuto",
+        "type": "BOOL",
+        "relative_list": "",
+        "tips": "自动白平衡"
+      },
+      {
+        "name": "Gamma",
+        "type": "DOUBLE",
+        "relative_list": "",
+        "tips": "Gamma校正"
+      },
+      {
+        "name": "GammaSelector",
+        "type": "ENUM",
+        "relative_list": "",
+        "tips": "Gamma校正"
+      },
+      {
+        "name": "GammaEnable",
+        "type": "BOOL",
+        "relative_list": "",
+        "tips": "Gamma校正使能"
+      },
+      {
+        "name": "Sharpness",
+        "type": "INT",
+        "relative_list": "",
+        "tips": "锐度设置"
+      },
+      {
+        "name": "SharpnessEnable",
+        "type": "BOOL",
+        "relative_list": "",
+        "tips": "锐度设置使能"
+      },
+      {
+        "name": "ContrastRatio",
+        "type": "DOUBLE",
+        "relative_list": "",
+        "tips": "对比度设置"
+      },
+      {
+        "name": "ContrastRatioEnable",
+        "type": "BOOL",
+        "relative_list": "",
+        "tips": "对比度设置使能"
+      }
+    ]
+  },
+  {
+    "group": "UserSetControl",
+    "params": [
+      {
+        "name": "UserSetSelector",
+        "type": "ENUM",
+        "relative_list": "",
+        "tips": "用户参数组选择"
+      },
+      {
+        "name": "UserSetLoad",
+        "type": "CMD",
+        "relative_list": "",
+        "tips": "参数组加载"
+      },
+      {
+        "name": "UserSetSave",
+        "type": "CMD",
+        "relative_list": "",
+        "tips": "参数组保存"
+      },
+      {
+        "name": "UserSetDefault",
+        "type": "ENUM",
+        "relative_list": "",
+        "tips": "默认用户参数组设置"
+      }
+    ]
+  }
+]
