@@ -12,14 +12,12 @@ class QSplitter;
 
 class CameraParamDelegate;
 class CameraParamModel;
-class ControlWidget;
 class CameraParam;
 class ParamWidget : public QWidget, Listener {
     Q_OBJECT
 
 public:
-    // ParamWidget(QWidget *parent = nullptr);
-    explicit ParamWidget(ControlWidget* controlWidget, QWidget* parent = nullptr);
+    explicit ParamWidget(QWidget* parent = nullptr);
     ~ParamWidget();
 
     void initParamWidget(QVector<CameraParam> paramList);
@@ -47,8 +45,6 @@ private:
     CameraParamModel* m_pModel;
     CameraParamDelegate* m_pCameraParamDelegate;
     QItemSelectionModel* m_pSelectionModel;
-
-    ControlWidget* m_pControlWidget;
 };
 
 #endif

@@ -3,19 +3,19 @@
 #include "CameraInterface/ZCCameraParam.h"
 #include "CameraInterface/CameraContext.h"
 #include "CameraInterface/CameraError.h"
-#include "ControlWidget/ControlWidget.h"
 #include "ParamWidget/CameraParamDelegate.h"
 #include "ParamWidget/CameraParamItem.h"
 #include "ParamWidget/CameraParamModel.h"
 #include <QDebug>
 #include <QFrame>
 #include <QHBoxLayout>
+#include <QHeaderView>
 #include <QPushButton>
 #include <QSpacerItem>
 #include <QSplitter>
 #include <QVBoxLayout>
 
-ParamWidget::ParamWidget(ControlWidget* controlWidget, QWidget* parent)
+ParamWidget::ParamWidget(QWidget* parent)
     : QWidget(parent)
     , Listener()
     , m_pRefreshButton(nullptr)
@@ -23,7 +23,6 @@ ParamWidget::ParamWidget(ControlWidget* controlWidget, QWidget* parent)
     , m_pParamTreeView(nullptr)
     , m_pParamDescript(nullptr)
     , m_pCameraParamDelegate(new CameraParamDelegate())
-    , m_pControlWidget(controlWidget)
 {
     setupUi();
     m_pParamDescript->setFixedHeight(58);
@@ -32,6 +31,8 @@ ParamWidget::ParamWidget(ControlWidget* controlWidget, QWidget* parent)
     headerList << "Param" << "Value";
     m_pModel = new CameraParamModel(headerList);
     m_pParamTreeView->setModel(m_pModel);
+    m_pParamTreeView->header()->setSectionResizeMode(QHeaderView::Interactive);
+    m_pParamTreeView->header()->setDefaultSectionSize(150);
     m_pParamTreeView->setItemDelegate(m_pCameraParamDelegate);
     m_pParamTreeView->expandAll();
     m_pSelectionModel = m_pParamTreeView->selectionModel();
@@ -95,6 +96,7 @@ void ParamWidget::setupUi()
     paramContainerLayout->setContentsMargins(0, 0, 0, 0);
     m_pParamTreeView = new QTreeView(paramContainer);
     m_pParamTreeView->setObjectName("Param_treeView");
+    m_pParamTreeView->setAlternatingRowColors(true);
     paramContainerLayout->addWidget(m_pParamTreeView);
     m_pSplitter->addWidget(paramContainer);
 
@@ -109,8 +111,7 @@ void ParamWidget::setupUi()
 
 void ParamWidget::initParamWidget(QVector<CameraParam> paramList)
 {
-    CameraMetaInfo currentCameraInfo = m_pControlWidget->GetCurrentCameraInfo();
-    QString serial = currentCameraInfo.Serial;
+    QString serial = CameraContext::Instance()->currentSerial();
 
     for (auto param : paramList) {
 
@@ -136,8 +137,7 @@ void ParamWidget::writeCameraParam(const QModelIndex& index)
     QVariant dataValue = m_pModel->data(index, CameraParamModel::ItemRoles::ParamRole);
     CameraParam curCameraParam = dataValue.value<CameraParam>();
 
-    CameraMetaInfo currentCameraInfo = m_pControlWidget->GetCurrentCameraInfo();
-    QString serial = currentCameraInfo.Serial;
+    QString serial = CameraContext::Instance()->currentSerial();
 
     CHECK_RETURN(CameraContext::Instance()->writeParam(serial, curCameraParam));
 }
@@ -150,11 +150,9 @@ void ParamWidget::RespondMessage(int message)
     if ((message & MESSAGE::CAMERA_CONNECT) == MESSAGE::CAMERA_CONNECT) {
         this->setEnabled(true);
 
-        CameraMetaInfo currentCameraInfo = m_pControlWidget->GetCurrentCameraInfo();
         QVector<CameraParam> paramList;
-        CameraContext::Instance()->getParamList(currentCameraInfo.Serial, paramList);
+        CameraContext::Instance()->getParamList(CameraContext::Instance()->currentSerial(), paramList);
         initParamWidget(paramList);
-        // initParamWidget();
         on_Refresh_Button_clicked();
     }
     if ((message & MESSAGE::CAMERA_DISCONNECT) == MESSAGE::CAMERA_DISCONNECT) {
