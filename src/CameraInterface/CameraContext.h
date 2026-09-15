@@ -54,6 +54,12 @@ public:
 
     uint32_t getImageLast(const QString serial, QImage& qImage);
 
+    // 当前选中的相机序列号。会话状态由门面统管，
+    // 各面板只依赖门面，彼此之间不再互相持有引用
+    uint32_t setCurrentSerial(const QString& serial);
+
+    QString currentSerial() const;
+
 private:
 
     CameraContext();
@@ -62,6 +68,7 @@ private:
 private:
     static CameraContext* m_pContext;
     QMap<QString, CameraInterface*> m_serialCamMap;
+    QString m_currentSerial;
 };
 
 #endif

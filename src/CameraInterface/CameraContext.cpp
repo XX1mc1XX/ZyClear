@@ -1,7 +1,5 @@
 #include "CameraContext.h"
 #include "../CameraFactory/CameraFactory.h"
-#include "../CameraFactory/HikCamera.h"
-#include "../CameraFactory/VirtualCamera.h"
 #include "../Utils/ImageConver.h"
 #include "ZCCameraMetaInfo.h"
 #include "ZCCameraParam.h"
@@ -56,10 +54,9 @@ uint32_t CameraContext::EnumerationCamera(QVector<CameraMetaInfo>& cameraInfos)
     m_serialCamMap.clear();
 
     QVector<CameraMetaInfo> infos;
-    VirtualCamera::EnumCamera(infos);
-    HikCamera::EnumCamera(infos);
+    CameraFactory::instance()->enumCameras(infos);
 
-    for (auto info : infos) {
+    for (const auto& info : infos) {
         QVector<CameraMetaInfo>::iterator it = std::find(cameraInfos.begin(), cameraInfos.end(), info);
 
         if (it == cameraInfos.end()) {
@@ -282,6 +279,20 @@ uint32_t CameraContext::getImageLast(const QString serial, QImage& image)
 
     image = ImageConver::cvMat2QImage(cvImage);
 
+    // QImage 已持有深拷贝，缓冲可以归还空闲池循环复用
+    camera->ImageQueue().Recycle(cvImage);
+
     return ZYCLEAR_OK;
+}
+
+uint32_t CameraContext::setCurrentSerial(const QString& serial)
+{
+    m_currentSerial = serial;
+    return ZYCLEAR_OK;
+}
+
+QString CameraContext::currentSerial() const
+{
+    return m_currentSerial;
 }
 
