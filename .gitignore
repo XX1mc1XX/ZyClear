@@ -1,0 +1,23 @@
+# 构建产物
+build/
+bin/
+x64/
+debug/
+release/
+
+# 备份目录
+src.bak/
+
+# 本地 IDE 配置（绝对路径，不进仓库）
+.vscode/
+.qtcreator/
+*.user
+*.sln
+*.vcxproj.user
+*.qtvscr
+
+# Qt Creator 构建目录
+build-*/
+
+# 海康 SDK 运行日志
+MvSDKLog/
