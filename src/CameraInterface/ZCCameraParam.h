@@ -155,7 +155,7 @@ public:
             return varParam.value;
         }
         case CMD: {
-            return "{Commond}";
+            return "{Command}";
         }
         case INT: {
             IntParam varParam = GetValue().value<IntParam>();
