@@ -44,7 +44,7 @@ private:
     ImageItem* m_pImageItem;
     QWidget* m_pPosInfoWidget;
     QLabel* m_pPosInfoLabel;
-    QImage m_qImage;
+    QSize m_qImageSize;
     QPixmap m_qTilePixmap = QPixmap(36, 36);
 };
 

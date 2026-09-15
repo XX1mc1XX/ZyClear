@@ -1,5 +1,4 @@
 #include "GraphicsView.h"
-#include <QMutexLocker>
 
 #define ZOOMMAX 50
 #define ZOOMMIN 0.1
@@ -70,10 +69,10 @@ bool GraphicsView::InitWidget()
 
 void GraphicsView::SetImage(const QImage& image)
 {
+    // 只留尺寸供 fitFrame 换算，图像本体交给 QPixmap：
+    // 原先另存一份 m_qImage 只用来读宽高，却是满帧率下的整幅深拷贝
+    m_qImageSize = image.size();
 
-    static QMutex mutex;
-    QMutexLocker locker(&mutex);
-    m_qImage = image.copy();
     auto qPixmap = QPixmap::fromImage(image);
     m_pImageItem->w = qPixmap.width();
     m_pImageItem->h = qPixmap.height();
@@ -149,13 +148,13 @@ void GraphicsView::OnZoom(double scaleFactor)
 
 void GraphicsView::fitFrame()
 {
-    if (this->width() < 1 || m_qImage.width() < 1)
+    if (this->width() < 1 || m_qImageSize.width() < 1)
         return;
 
     double winWidth = this->width();
     double winHeight = this->height();
-    double ScaleWidth = (m_qImage.width() + 1) / winWidth;
-    double ScaleHeight = (m_qImage.height() + 1) / winHeight;
+    double ScaleWidth = (m_qImageSize.width() + 1) / winWidth;
+    double ScaleHeight = (m_qImageSize.height() + 1) / winHeight;
     double s_temp = ScaleWidth >= ScaleHeight ? 1 / ScaleWidth : 1 / ScaleHeight;
     double scale = s_temp / m_dZoomValue;
 
