@@ -1,5 +1,6 @@
-# 构建产物
+# 构建产物（build-* 覆盖 clangd 用的 build-ninja 等辅助构建目录）
 build/
+build-*/
 bin/
 x64/
 debug/
@@ -8,16 +9,26 @@ release/
 # 备份目录
 src.bak/
 
-# 本地 IDE 配置（绝对路径，不进仓库）
+# 本地 IDE 配置（含绝对路径，不进仓库）
 .vscode/
 .qtcreator/
+.mimosa/
 *.user
 *.sln
 *.vcxproj.user
 *.qtvscr
 
-# Qt Creator 构建目录
-build-*/
+# CMake 生成物
+CMakeUserPresets.json
+compile_commands.json
+
+# clangd 索引缓存
+.cache/
 
 # 海康 SDK 运行日志
 MvSDKLog/
+
+# 系统杂项
+.DS_Store
+Thumbs.db
+*.log
