@@ -80,6 +80,7 @@ void ControlWidget::setupUi()
 
     m_pCameraListWidget = new QListWidget(this);
     m_pCameraListWidget->setObjectName("Camera_listWidget");
+    m_pCameraListWidget->setAlternatingRowColors(true);
     verticalLayout->addWidget(m_pCameraListWidget);
 
     connect(m_pEnumerationButton, &QPushButton::clicked, this, &ControlWidget::on_Enumeration_Button_clicked);
@@ -100,6 +101,10 @@ void ControlWidget::on_Enumeration_Button_clicked()
 
     QVector<CameraMetaInfo> cameras;
     CameraContext::Instance()->EnumerationCamera(cameras);
+
+    // 枚举会重建相机注册表，旧的选中序列号随之失效；
+    // 清在前，列表重建若自动选中首项会重新写入
+    CameraContext::Instance()->setCurrentSerial(QString());
 
     m_pCameraListWidget->clear();
     m_cameraMetaInfos.clear();
@@ -155,6 +160,10 @@ void ControlWidget::on_Camera_listWidget_currentRowChanged(int currentRow)
     m_lastCameraIndex = currentRow;
 
     CameraMetaInfo currentCameraInfo = GetCurrentCameraInfo();
+
+    // 会话状态写回门面，各面板据此寻址，彼此不再互相持有引用
+    CameraContext::Instance()->setCurrentSerial(currentCameraInfo.Serial);
+
     bool connectState;
     CameraContext::Instance()->isConnect(currentCameraInfo.Serial, connectState);
     if (connectState == true) {
