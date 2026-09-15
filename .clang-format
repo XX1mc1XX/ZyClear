@@ -1,0 +1,21 @@
+# 代码风格：函数、类、命名空间的大括号另起一行，if / for / while 跟随同一行
+BasedOnStyle: WebKit
+Language: Cpp
+
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+
+# 不限定列宽，避免长参数表与中文注释被折行
+ColumnLimit: 0
+
+# const CameraMetaInfo& info
+PointerAlignment: Left
+
+# 包含顺序按「本文件头 → 项目头 → 三方头」人工维护
+SortIncludes: false
+
+AllowShortFunctionsOnASingleLine: Inline
+BreakConstructorInitializers: BeforeComma
+
+Standard: c++17

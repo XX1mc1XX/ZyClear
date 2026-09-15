@@ -1,0 +1,7 @@
+# clangd 配置。编译数据库由独立的 Ninja 构建目录产出：
+# VS 生成器会忽略 CMAKE_EXPORT_COMPILE_COMMANDS，语言服务器便拿不到包含路径。
+#
+#   cmake -B build-ninja -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+#         -DCMAKE_PREFIX_PATH=<Qt6 路径> -DOpenCV_ROOT=<OpenCV 路径>
+CompileFlags:
+  CompilationDatabase: build-ninja
