@@ -4,7 +4,6 @@
 #include "CameraInterface/ZCCameraParam.h"
 #include "CameraInterface/CameraContext.h"
 #include "CameraInterface/CameraError.h"
-#include "ControlWidget/ControlWidget.h"
 #include "ViewWidget/GraphicsView.h"
 #include <QFrame>
 #include <QHBoxLayout>
@@ -12,19 +11,16 @@
 #include <QSpacerItem>
 #include <QVBoxLayout>
 
-ViewWidget::ViewWidget(ControlWidget* controlWidget, QWidget* parent)
+ViewWidget::ViewWidget(QWidget* parent)
     : QWidget(parent)
     , Listener()
     , m_pGrabbingButton(nullptr)
     , m_pViewBoxContainer(nullptr)
     , m_pViewBox(new GraphicsView())
-    , m_pControlWidget(controlWidget)
     , m_pImageProcess(new AcquireImageProcess())
 {
     setupUi();
     m_pViewBoxContainer->layout()->addWidget(m_pViewBox);
-
-    connect(m_pImageProcess, &AcquireImageProcess::sigUpdateImage, m_pViewBox, &GraphicsView::SetImage);
 
     ListenerManger::Instance()->registerMessage(MESSAGE::CAMERA_CONNECT
             | MESSAGE::CAMERA_DISCONNECT
@@ -97,7 +93,7 @@ void ViewWidget::RespondMessage(int message)
 void ViewWidget::on_Grabbing_Button_toggled(bool checked)
 {
     Q_UNUSED(checked);
-    QString serial = m_pControlWidget->GetCurrentCameraInfo().Serial;
+    QString serial = CameraContext::Instance()->currentSerial();
     if (serial.isNull())
         return;
 
@@ -115,10 +111,10 @@ void ViewWidget::on_Grabbing_Button_toggled(bool checked)
         ListenerManger::Instance()->notify(MESSAGE::CAMERA_STARTGRAB);
     } else {
         disconnect(m_pImageProcess, &AcquireImageProcess::sigUpdateImage, m_pViewBox, &GraphicsView::SetImage);
-        CHECK_RETURN(CameraContext::Instance()->stopGrabbing(serial));
 
-        m_pImageProcess->quit();
-        // m_pImageProcess->wait();
+        // 先让采集线程退出再停相机，避免线程向已停止的相机反复取帧空等超时
+        m_pImageProcess->stop();
+        CHECK_RETURN(CameraContext::Instance()->stopGrabbing(serial));
 
         ListenerManger::Instance()->notify(MESSAGE::CAMERA_STOPTGRAB);
     }

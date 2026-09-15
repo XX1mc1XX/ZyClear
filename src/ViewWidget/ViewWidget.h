@@ -7,13 +7,12 @@
 class QPushButton;
 
 class GraphicsView;
-class ControlWidget;
 class AcquireImageProcess;
 class ViewWidget : public QWidget, Listener {
     Q_OBJECT
 
 public:
-    explicit ViewWidget(ControlWidget* controlWidget, QWidget* parent = nullptr);
+    explicit ViewWidget(QWidget* parent = nullptr);
     ~ViewWidget();
     void RespondMessage(int message) override;
 
@@ -32,8 +31,6 @@ private:
     QPushButton* m_pGrabbingButton;
     QWidget* m_pViewBoxContainer;
     GraphicsView* m_pViewBox;
-
-    ControlWidget* m_pControlWidget;
 
     AcquireImageProcess* m_pImageProcess;
 };
