@@ -1,0 +1,2 @@
+// 等价替代原 qmake 配置：RC_ICONS = favicon.ico（路径相对本文件所在目录）
+IDI_ICON1 ICON "favicon.ico"

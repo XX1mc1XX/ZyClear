@@ -1,0 +1,17 @@
+<RCC>
+    <qresource prefix="/">
+        <file>Enumeration.png</file>
+        <file>Refresh.png</file>
+        <file>StopGrab.png</file>
+        <file>StratGrab.png</file>
+        <file>Connect.png</file>
+        <file>DisConnect.png</file>
+        <file>LoadConfig.png</file>
+        <file>SaveConfig.png</file>
+        <file>loading.gif</file>
+        <file>Close.png</file>
+        <file>zhouxuan.jpg</file>
+        <file>favicon.ico</file>
+        <file>icon.png</file>
+    </qresource>
+</RCC>
