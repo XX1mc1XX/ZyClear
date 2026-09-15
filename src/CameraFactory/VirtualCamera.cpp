@@ -176,14 +176,7 @@ uint32_t VirtualCamera::writeParam(CameraParam& param)
 
 uint32_t VirtualCamera::getImageLast(cv::Mat& image)
 {
-
-    cv::Mat srcImage;
-    auto ret = m_imageQueue.Take(srcImage);
-    if (ret == GETIAMGE_TIMEOUT) {
-        return GETIAMGE_TIMEOUT;
-    }
-    srcImage.copyTo(image);
-
-    return ZYCLEAR_OK;
+    // 直接取进输出参数，省掉一次全图拷贝；缓冲由调用方经 Recycle 归还
+    return m_imageQueue.Take(image);
 }
 
