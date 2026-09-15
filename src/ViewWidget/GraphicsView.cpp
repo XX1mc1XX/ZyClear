@@ -69,8 +69,7 @@ bool GraphicsView::InitWidget()
 
 void GraphicsView::SetImage(const QImage& image)
 {
-    // 只留尺寸供 fitFrame 换算，图像本体交给 QPixmap：
-    // 原先另存一份 m_qImage 只用来读宽高，却是满帧率下的整幅深拷贝
+    // 只留尺寸供 fitFrame 换算，图像本体交给 QPixmap
     m_qImageSize = image.size();
 
     auto qPixmap = QPixmap::fromImage(image);

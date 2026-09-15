@@ -161,7 +161,7 @@ void ControlWidget::on_Camera_listWidget_currentRowChanged(int currentRow)
 
     CameraMetaInfo currentCameraInfo = GetCurrentCameraInfo();
 
-    // 会话状态写回门面，各面板据此寻址，彼此不再互相持有引用
+    // 选中项写回门面，供各面板寻址
     CameraContext::Instance()->setCurrentSerial(currentCameraInfo.Serial);
 
     bool connectState;

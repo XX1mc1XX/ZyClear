@@ -8,9 +8,7 @@
 #include <queue>
 #include <thread>
 
-// 取帧等待上限。该值同时决定"停止采集"的最坏响应延迟：
-// 采集线程阻塞在 Take 上时，最多等这么久就会回到中断标志检查，
-// 因此不宜取大值，否则点停止会卡住调用线程
+// 取帧等待上限，同时决定停止采集的最坏响应延迟
 #define TIME_OUT_MS 200
 #define ImageQueueSize 10
 
@@ -23,7 +21,7 @@ public:
 
     uint32_t Take(cv::Mat& m);
 
-    // 调用方用完取出的帧后归还缓冲，供生产端循环复用
+    // 归还取出的帧，供生产端复用缓冲
     void Recycle(const cv::Mat& m);
 
 private:

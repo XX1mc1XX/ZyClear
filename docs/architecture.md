@@ -1,7 +1,6 @@
 # 架构说明
 
-本文说明 zyClear 的分层方式、依赖规则与扩展点，以及每条规则的**可验证方法**。
-文档中的所有约束都能用 grep 当场核对，不依赖口头承诺。
+本文说明 zyClear 的分层方式、依赖规则与扩展点。
 
 ---
 
@@ -139,7 +138,7 @@ grep -rniE "hikrobot|\"Hik\"|MV_CC_" src/ControlWidget/ src/ParamWidget/ src/Vie
 2. 在 `CameraFactory::instance()` 里追加一行 `registerVendor<YourCamera>("厂商名")`
 3. 若该 SDK 为可选依赖，仿照海康的做法在 `src/CMakeLists.txt` 里加条件编译
 
-第 1 步之外，门面、参数面板、图像链路**一行都不用改**——这是分层的直接结果。
+第 1 步之外，门面、参数面板、图像链路**一行都不用改**。
 
 ### 新增一个相机型号
 

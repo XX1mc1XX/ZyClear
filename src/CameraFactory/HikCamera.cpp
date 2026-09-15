@@ -84,8 +84,7 @@ bool HikConvert2Mat(void* handle, MV_FRAME_OUT_INFO_EX* pstImageInfo, unsigned c
         return false;
     }
 
-    // 目标缓冲区交给 cv::Mat 自持：create() 在尺寸与类型不变时不重新分配，
-    // 转换结果直接写入 Mat 内存，不再手工 malloc/free，避免每帧堆泄漏
+    // 目标缓冲由 Mat 自持，create() 在尺寸与类型不变时不会重新分配
     dstImage.create(pstImageInfo->nHeight, pstImageInfo->nWidth, nDstType);
     if (!dstImage.isContinuous()) {
         qWarning() << "HikConvert2Mat: dst mat is not continuous";

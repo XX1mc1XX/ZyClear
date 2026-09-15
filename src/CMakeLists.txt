@@ -101,10 +101,9 @@ if(WIN32)
     list(APPEND ZYCLEAR_SOURCES Resource/appicon.rc)
 endif()
 
-# 海康相机 SDK（枚举、连接、采图全靠它）属可选依赖，默认指向版本根 depends/HikCamera，
-# 换位置时传 -DHikSDK_ROOT=你的路径 覆盖。
-# 头文件与库目录齐备才把 HikCamera.cpp 纳入编译，并定义 ZYCLEAR_HAS_HIK_SDK 供源码条件编译；
-# 缺失时该适配器整体不参与编译、工厂也不注册此品牌，程序退化为纯虚拟相机形态仍可构建运行
+# 海康相机 SDK 属可选依赖，默认指向版本根 depends/HikCamera，可用 -DHikSDK_ROOT= 覆盖。
+# 头文件与库目录齐备才把适配器纳入编译并定义 ZYCLEAR_HAS_HIK_SDK；
+# 缺失时该适配器整体不参与编译，程序退化为纯虚拟相机形态
 set(HikSDK_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../depends/HikCamera" CACHE PATH "海康相机 SDK 根目录")
 if(EXISTS "${HikSDK_ROOT}/Includes" AND EXISTS "${HikSDK_ROOT}/Libraries")
     set(ZYCLEAR_HAS_HIK_SDK ON)
@@ -156,7 +155,7 @@ if(ZYCLEAR_HAS_HIK_SDK)
     target_include_directories(zyClear PRIVATE "${HikSDK_ROOT}/Includes")
     target_link_directories(zyClear PRIVATE "${HikSDK_ROOT}/Libraries")
     target_link_libraries(zyClear PRIVATE MvCameraControl)
-    # 源码据此条件编译海康适配器的头文件与工厂注册，缺 SDK 时这段代码不参与编译
+    # 源码据此条件编译适配器与工厂注册
     target_compile_definitions(zyClear PRIVATE ZYCLEAR_HAS_HIK_SDK)
 endif()
 
@@ -174,9 +173,7 @@ if(UNIX AND NOT ANDROID)
     install(TARGETS zyClear DESTINATION /opt/zyClear/bin)
 endif()
 
-# 单元测试（开关 BUILD_TESTING 由顶层 include(CTest) 定义）。
-# 测试对象是队列、参数模型、JSON 解析这类不含硬件依赖的纯逻辑组件，
-# 因此 CI 在无相机的干净环境下也能全部通过
+# 单元测试，开关 BUILD_TESTING 由顶层 include(CTest) 定义
 if(BUILD_TESTING)
     add_subdirectory(tests)
 endif()

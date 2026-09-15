@@ -1,11 +1,6 @@
-# 持续集成：构建 + 单元测试。
-#
-# 选 Linux 而非 Windows：Windows runner 上装 OpenCV 需要现场编译（耗时以小时计），
-# 而 Ubuntu 一条 apt 就能备齐 Qt 6 与 OpenCV，反馈更快。
-#
-# 本 job 同时承担第二项职责——验证「外部 SDK 缺失时降级为纯虚拟相机仍可构建」：
-# 下面显式把 HikSDK_ROOT 指向不存在的路径，逼 CMake 走降级分支。
-# 若哪天有人把海康适配器写成无条件编译，这个 job 会立刻变红。
+# CI：构建 + 单元测试。
+# 选 Ubuntu 是因为 Qt 与 OpenCV 一条 apt 即可装齐，Windows runner 需现场编译 OpenCV。
+# HikSDK_ROOT 故意指向不存在的路径，顺带覆盖缺 SDK 时的降级构建路径。
 name: build
 
 on:

@@ -17,8 +17,7 @@ CameraFactory* CameraFactory::instance()
             m_instance = new CameraFactory();
             m_instance->registerVendor<VirtualCamera>(
                 VirtualCamera::VIRTUAL_CAMERA_VENDER);
-            // 未接入海康 SDK 时不注册该品牌：枚举不到、也创建不了，
-            // 程序以纯虚拟相机形态照常运行
+            // 未接入 SDK 时不注册该品牌
 #ifdef ZYCLEAR_HAS_HIK_SDK
             m_instance->registerVendor<HikCamera>(
                 HikCamera::HIK_CAMERA_VENDER);

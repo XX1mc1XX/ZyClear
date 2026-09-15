@@ -176,7 +176,7 @@ uint32_t VirtualCamera::writeParam(CameraParam& param)
 
 uint32_t VirtualCamera::getImageLast(cv::Mat& image)
 {
-    // 直接取进输出参数，省掉一次全图拷贝；缓冲由调用方经 Recycle 归还
+    // 直接取进输出参数，省去一次全图拷贝
     return m_imageQueue.Take(image);
 }
 

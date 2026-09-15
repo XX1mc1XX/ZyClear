@@ -13,8 +13,7 @@ public:
 
     static CameraFactory* instance();
 
-    // 一个品牌的全部接入方式一次登记齐：创建器 + 枚举器。
-    // 新增品牌只在此处登记一次，门面无需认识任何具体相机类型
+    // 登记一个品牌的创建器与枚举器
     template <typename T>
     void registerVendor(const QString& venderName)
     {
@@ -28,7 +27,7 @@ public:
 
     CameraInterface* createCamera(const CameraMetaInfo& info);
 
-    // 依次调用各已注册品牌的枚举器，结果追加到 cameraInfos
+    // 依次调用各品牌的枚举器，结果追加到 cameraInfos
     uint32_t enumCameras(QVector<CameraMetaInfo>& cameraInfos) const;
 
     QStringList getSupportedVenders() const;

@@ -2,13 +2,7 @@
 
 #include "CameraInterface/ZCCameraParam.h"
 
-/**
- * 统一参数模型的行为测试。
- *
- * 这一层是「厂商差异不外泄」的关键：六种参数类型被压进同一个外观类，
- * 上层只认 displayText / 访问权限三态。测试固定这些对外契约，
- * 并验证原型复制与 QVariant 装箱在跨线程信号投递中不会丢数据。
- */
+// 参数模型：六种类型的显示文本、访问权限三态、原型复制与 QVariant 装箱
 class TestCameraParam : public QObject
 {
     Q_OBJECT
@@ -74,7 +68,7 @@ private slots:
 
     void displayTextForCommandIsPlaceholder()
     {
-        // 命令型参数没有"值"，界面上只呈现一个可点击的占位文本
+        // 命令型参数只呈现可点击的占位文本
         CameraParam param = makeParam(CMD);
         param.SetValue(QVariant::fromValue(CmdParam()));
 
@@ -83,14 +77,14 @@ private slots:
 
     void displayTextForUnknownTypeIsSafe()
     {
-        // 未知类型不能崩，也不能返回空串让界面出现空白单元格
+        // 未知类型不应崩溃或返回空串
         CameraParam param = makeParam(UNKNOWN);
         QCOMPARE(param.displayText(), QStringLiteral("unknow"));
     }
 
     void accessModeDefaultsToAllFalse()
     {
-        // 默认应视为不可用，避免设备未上报权限时界面误开放编辑
+        // 默认为不可用，避免权限未上报时误开放编辑
         CameraParam param = makeParam(INT);
 
         QVERIFY(!param.isValid());
@@ -125,7 +119,7 @@ private slots:
 
     void cloneProducesIndependentCopy()
     {
-        // 原型复制用于把参数投递给界面后仍保留原件，副本改动不得回写原件
+        // 副本改动不应回写原件
         IntParam original;
         original.value = 10;
         original.min = 0;
@@ -142,7 +136,7 @@ private slots:
 
     void variantRoundTripPreservesValue()
     {
-        // 参数值要经 QVariant 跨线程投递，装箱拆箱后字段必须完好
+        // 装箱拆箱后字段应完好
         IntParam source;
         source.value = 123;
         source.increment = 5;

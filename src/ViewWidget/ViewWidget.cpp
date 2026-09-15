@@ -112,7 +112,7 @@ void ViewWidget::on_Grabbing_Button_toggled(bool checked)
     } else {
         disconnect(m_pImageProcess, &AcquireImageProcess::sigUpdateImage, m_pViewBox, &GraphicsView::SetImage);
 
-        // 先让采集线程退出再停相机，避免线程向已停止的相机反复取帧空等超时
+        // 先退采集线程再停相机，避免线程空等取帧超时
         m_pImageProcess->stop();
         CHECK_RETURN(CameraContext::Instance()->stopGrabbing(serial));
 

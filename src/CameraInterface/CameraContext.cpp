@@ -279,7 +279,7 @@ uint32_t CameraContext::getImageLast(const QString serial, QImage& image)
 
     image = ImageConver::cvMat2QImage(cvImage);
 
-    // QImage 已持有深拷贝，缓冲可以归还空闲池循环复用
+    // QImage 已深拷贝，缓冲归还空闲池
     camera->ImageQueue().Recycle(cvImage);
 
     return ZYCLEAR_OK;

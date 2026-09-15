@@ -2,14 +2,7 @@
 
 #include "ParseUiJson/ParseUiJson.h"
 
-/**
- * 参数 Schema 解析器测试。
- *
- * 「新增型号不编译、不发版」成立的前提是这份 JSON 真的能被可靠解析。
- * 因此测试着重两件事：合法文档要完整还原分组与类型；
- * 非法文档必须被拒并且错误信息能指到具体是哪个分组的第几个参数——
- * 配置由技术支持维护，报错指不到位置等于没法自查。
- */
+// 参数 Schema 解析：合法文档还原分组与类型，非法文档报出具体位置
 class TestParseUiJson : public QObject
 {
     Q_OBJECT
@@ -18,7 +11,7 @@ private slots:
 
     void init()
     {
-        // 解析器是单例，用例之间必须清干净，否则上一个用例的状态会串到下一个
+        // 解析器是单例，用例间需重置状态
         ParseUiJson::instance()->clear();
     }
 
@@ -138,7 +131,7 @@ private slots:
 
     void unknownTypeFallsBackToUnknown()
     {
-        // 型号用了新类型而程序版本较旧时，应退化为 UNKNOWN 而不是丢弃整个参数
+        // 未知类型应退化为 UNKNOWN，而非丢弃参数
         const QString json = QStringLiteral(R"([
             {"group":"Types","params":[{"name":"A","type":"COMPLEX","tips":""}]}
         ])");

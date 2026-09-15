@@ -14,7 +14,7 @@ public:
 
     void setSerial(QString serial);
 
-    // 请求线程退出并等待其结束。取帧最长阻塞 TIME_OUT_MS，等待留有余量
+    // 请求线程退出并等待结束
     void stop();
 
 signals:
