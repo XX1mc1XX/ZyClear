@@ -8,7 +8,10 @@
 #include <queue>
 #include <thread>
 
-#define TIME_OUT_MS 5000
+// 取帧等待上限。该值同时决定"停止采集"的最坏响应延迟：
+// 采集线程阻塞在 Take 上时，最多等这么久就会回到中断标志检查，
+// 因此不宜取大值，否则点停止会卡住调用线程
+#define TIME_OUT_MS 200
 #define ImageQueueSize 10
 
 class CameraImageQueue {
@@ -20,16 +23,10 @@ public:
 
     uint32_t Take(cv::Mat& m);
 
-    bool Empty();
-
-    bool Full();
-
-    size_t Size();
+    // 调用方用完取出的帧后归还缓冲，供生产端循环复用
+    void Recycle(const cv::Mat& m);
 
 private:
-    bool isFull() const;
-    bool isEmpty() const;
-    bool NotFull() const;
     bool NotEmpty() const;
 
 private:
@@ -39,8 +36,6 @@ private:
     std::queue<cv::Mat> workImageQueue;
 
     uint8_t m_queueSize;
-    bool m_needStop;
 };
 
 #endif
-
