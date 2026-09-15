@@ -17,7 +17,7 @@ void BoolCustomWidget::setParam(CameraParam& param)
     m_pCheckBox->setChecked(varParam.value);
     m_pCheckBox->setText(m_param.displayText());
 
-    disconnect(m_pCheckBox, &QCheckBox::checkStateChanged,
+    connect(m_pCheckBox, &QCheckBox::clicked,
         this, &BoolCustomWidget::onValueChanged);
 }
 
@@ -33,7 +33,7 @@ void BoolCustomWidget::addEditLayout(QHBoxLayout* layout)
 
 void BoolCustomWidget::onValueChanged(bool checked)
 {
-    IntParam varParam = getParam().GetValue().value<IntParam>();
+    BoolParam varParam = getParam().GetValue().value<BoolParam>();
     varParam.value = checked;
     m_param.SetValue(QVariant::fromValue(varParam));
 }
