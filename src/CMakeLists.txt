@@ -30,7 +30,6 @@ set(ZYCLEAR_SOURCES
     CameraFactory/CameraFactory.cpp
     CameraInterface/CameraContext.cpp
     CameraInterface/CameraImageQueue.cpp
-    CameraFactory/HikCamera.cpp
     CameraFactory/VirtualCamera.cpp
     ControlWidget/ControlWidget.cpp
     Listener.cpp
@@ -102,6 +101,20 @@ if(WIN32)
     list(APPEND ZYCLEAR_SOURCES Resource/appicon.rc)
 endif()
 
+# 海康相机 SDK（枚举、连接、采图全靠它）属可选依赖，默认指向版本根 depends/HikCamera，
+# 换位置时传 -DHikSDK_ROOT=你的路径 覆盖。
+# 头文件与库目录齐备才把 HikCamera.cpp 纳入编译，并定义 ZYCLEAR_HAS_HIK_SDK 供源码条件编译；
+# 缺失时该适配器整体不参与编译、工厂也不注册此品牌，程序退化为纯虚拟相机形态仍可构建运行
+set(HikSDK_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../depends/HikCamera" CACHE PATH "海康相机 SDK 根目录")
+if(EXISTS "${HikSDK_ROOT}/Includes" AND EXISTS "${HikSDK_ROOT}/Libraries")
+    set(ZYCLEAR_HAS_HIK_SDK ON)
+    list(APPEND ZYCLEAR_SOURCES CameraFactory/HikCamera.cpp)
+    message(STATUS "海康相机 SDK：已接入（${HikSDK_ROOT}）")
+else()
+    set(ZYCLEAR_HAS_HIK_SDK OFF)
+    message(STATUS "海康相机 SDK：未找到（${HikSDK_ROOT}），本次仅构建虚拟相机")
+endif()
+
 # 生成 zyClear.exe。WIN32 表示 GUI 程序，启动时不带黑控制台窗口
 add_executable(zyClear WIN32
     ${ZYCLEAR_SOURCES}
@@ -122,12 +135,14 @@ target_link_libraries(zyClear PRIVATE
 
 # OpenCV 用来做图像处理（格式转换、算法等）。装在别的路径时，配置那一步传 -DOpenCV_ROOT=你的路径 即可覆盖下面默认值
 set(OpenCV_ROOT "C:/opencv/build" CACHE PATH "OpenCV 构建根目录")
-# 先试官方标准方式找（Config 包）；QUIET 表示找不到也不刷屏报错，后面有兜底；NO_DEFAULT_PATH 表示只在上面指定路径找，不用系统杂路径
-find_package(OpenCV QUIET PATHS ${OpenCV_ROOT} NO_DEFAULT_PATH)
+# 先按上面指定路径找；找不到再退回系统默认搜索路径（不设 NO_DEFAULT_PATH，
+# 否则 Linux 上由发行版包管理器安装的 OpenCV 永远找不到）
+find_package(OpenCV QUIET PATHS ${OpenCV_ROOT})
 if(OpenCV_FOUND)
     target_link_libraries(zyClear PRIVATE ${OpenCV_LIBS})
 else()
-    # 兜底：标准方式找不到就手动指定头文件和库目录。Debug 链接带 d 后缀的库（opencv_world455d），Release 链接不带 d 的，$<CONFIG:Debug> 会按当前配置自动二选一
+    # 兜底：标准方式找不到就手动指定头文件和库目录（面向 Windows 上未生成 Config 包的发行版）。
+    # Debug 链接带 d 后缀的库（opencv_world455d），Release 链接不带 d 的，$<CONFIG:Debug> 会按当前配置自动二选一
     target_include_directories(zyClear PRIVATE "${OpenCV_ROOT}/include")
     target_link_directories(zyClear PRIVATE "${OpenCV_ROOT}/x64/vc15/lib")
     target_link_libraries(zyClear PRIVATE
@@ -136,15 +151,13 @@ else()
     )
 endif()
 
-# 海康相机 SDK（枚举、连接、采图全靠它）。默认指向版本根 depends/HikCamera，换位置时传 -DHikSDK_ROOT=你的路径 覆盖
-set(HikSDK_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../depends/HikCamera" CACHE PATH "海康相机 SDK 根目录")
-# 有头文件和库目录才接SDK；没有就只给个警告继续编（此时只能用虚拟相机，真机相关代码编不过会报错，见 HikCamera.cpp）
-if(EXISTS "${HikSDK_ROOT}/Includes" AND EXISTS "${HikSDK_ROOT}/Libraries")
+# 海康 SDK 的头文件与链接配置，是否接入取决于上面的探测结果
+if(ZYCLEAR_HAS_HIK_SDK)
     target_include_directories(zyClear PRIVATE "${HikSDK_ROOT}/Includes")
     target_link_directories(zyClear PRIVATE "${HikSDK_ROOT}/Libraries")
     target_link_libraries(zyClear PRIVATE MvCameraControl)
-else()
-    message(WARNING "未找到海康 SDK（${HikSDK_ROOT}），已跳过其头文件与链接配置")
+    # 源码据此条件编译海康适配器的头文件与工厂注册，缺 SDK 时这段代码不参与编译
+    target_compile_definitions(zyClear PRIVATE ZYCLEAR_HAS_HIK_SDK)
 endif()
 
 # 不管 Debug 还是 Release，exe 统一输出到版本根 bin 目录（ZYCLEAR_BIN_DIR 在顶层 CMakeLists 里定义）。
@@ -159,4 +172,11 @@ set_target_properties(zyClear PROPERTIES
 if(UNIX AND NOT ANDROID)
     include(GNUInstallDirs)
     install(TARGETS zyClear DESTINATION /opt/zyClear/bin)
+endif()
+
+# 单元测试（开关 BUILD_TESTING 由顶层 include(CTest) 定义）。
+# 测试对象是队列、参数模型、JSON 解析这类不含硬件依赖的纯逻辑组件，
+# 因此 CI 在无相机的干净环境下也能全部通过
+if(BUILD_TESTING)
+    add_subdirectory(tests)
 endif()
