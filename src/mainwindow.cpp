@@ -15,8 +15,8 @@ MainWindow::MainWindow(QWidget* parent)
     , m_pViewContainer(nullptr)
     , m_pParamContainer(nullptr)
     , m_pControlWidget(new ControlWidget())
-    , m_pParamWidget(new ParamWidget(m_pControlWidget))
-    , m_pViewWidget(new ViewWidget(m_pControlWidget))
+    , m_pParamWidget(new ParamWidget())
+    , m_pViewWidget(new ViewWidget())
     , m_pErrorInfoLabel(new QLabel(""))
 {
     setupUi();
@@ -25,6 +25,7 @@ MainWindow::MainWindow(QWidget* parent)
     m_pParamContainer->layout()->addWidget(m_pParamWidget);
     m_pViewContainer->layout()->addWidget(m_pViewWidget);
     statusBar()->addWidget(m_pErrorInfoLabel);
+    statusBar()->setSizeGripEnabled(false);
     this->resize(1000, 600);
 
     connect(m_pControlWidget, &ControlWidget::SigUpdateErrorInfo, this, &MainWindow::OnUpdateErrorInfo);
