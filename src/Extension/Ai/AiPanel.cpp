@@ -71,9 +71,9 @@ void AiPanel::setupUi()
 {
     setObjectName("AiPanel");
 
-    // 允许被拖到很窄。上限由内部控件决定，所以这里统一用「图标按钮」而不是
-    // 文字按钮 —— 文字一多，最小宽度就下不去了。
-    setMinimumWidth(120);
+    // 侧边栏可以拖得很窄，和 VS Code 一样。下限只留 60：
+    // 内部控件都已经允许压缩，窄到极限时内容被裁而不是把面板顶住。
+    setMinimumWidth(60);
 
     m_pTitleLabel->setObjectName("aiTitle");
     m_pStatusLabel->setObjectName("aiStatus");

@@ -106,8 +106,9 @@ void LogPanel::setupUi()
 {
     setObjectName("LogPanel");
 
-    // 同理：底部面板不设最小高度会缩成一条线
-    setMinimumHeight(150);
+    // 同理：底部面板不设最小高度会缩成一条线；给一个能看出内容的下限，
+    // 再小就只剩标签栏了
+    setMinimumHeight(60);
 
     m_pSourceTabs->setObjectName("logSourceTabs");
     m_pSourceTabs->setExpanding(false);
