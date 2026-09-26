@@ -30,6 +30,8 @@
 | 实时成像 | 独立采集线程 + 双队列缓冲，保新弃旧，界面不阻塞 |
 | 图像显示 | 缩放、平移、双击自适应、像素级取色 |
 | 无硬件调试 | 虚拟相机覆盖全部功能链路 |
+| **AI 助手**（可选） | 用日常说法操作相机：说「画面有点暗」，自动查画面指标、改曝光、回读确认 |
+| **日志面板** | AI 决策日志 / 相机 SDK 日志 / 应用日志，三份并列成标签页，不用再翻目录 |
 
 ---
 
@@ -77,6 +79,7 @@ cmake --build build --config Release
 | `OpenCV_ROOT` | `C:/opencv/build` | OpenCV 构建目录 |
 | `HikSDK_ROOT` | `depends/HikCamera` | 海康 SDK 根目录 |
 | `BUILD_TESTING` | `ON` | 是否构建单元测试 |
+| `ZYCLEAR_AI_ROOT` | 空 | agent4cpp 安装前缀。留空则不构建 AI 助手，程序照常构建运行（与缺海康 SDK 时同一套降级策略） |
 
 产物统一输出到 `bin/`，与运行时所需的 Qt、OpenCV DLL 同目录。
 
@@ -145,6 +148,9 @@ grep -rn "ControlWidget\*" src/ParamWidget/ src/ViewWidget/    # 期望无输出
 │   ├── Resource/           参数 Schema 等资源
 │   ├── Icon/               图标资源
 │   ├── Utils/              图像格式转换
+│   ├── Extension/          可扩展面板框架（通用层，不含本项目任何业务类型）
+│   │   └── Ai/             AI 助手面板：多步循环 / 会话历史 / 知识库
+│   ├── Integration/        宿主适配层：把相机能力暴露成 AI 工具（唯一认识相机的扩展点）
 │   ├── Listener.*          事件总线
 │   ├── mainwindow.*        主窗口装配
 │   ├── main.cpp            程序入口
@@ -153,6 +159,36 @@ grep -rn "ControlWidget\*" src/ParamWidget/ src/ViewWidget/    # 期望无输出
 ├── docs/                   架构说明、简历归档
 └── .github/workflows/      持续集成
 ```
+
+---
+
+## 扩展与插件
+
+界面本身也是可扩展的：实现 `IPanel`，再注册一行即可。
+
+```cpp
+class MyPanelExtension : public IPanel {
+    QString PanelId() const override { return "my.panel"; }
+    QString PanelTitle() const override { return "我的面板"; }
+    QWidget* CreateWidget(QWidget* parent) override { return new MyPanel(parent); }
+};
+registry->Register("my.panel", []() -> IPanel* { return new MyPanelExtension(); });
+```
+
+更彻底的方式是**外部 DLL 插件**：把面板编成动态库，按约定导出入口，丢进程序目录下的
+`extensions/`，启动时自动加载，主程序不需要重新编译：
+
+```cpp
+extern "C" ZYCLEAR_EXTENSION_EXPORT int ZyClearExtensionCount();
+extern "C" ZYCLEAR_EXTENSION_EXPORT IPanel* ZyClearExtensionAt(int index);
+```
+
+**AI 助手与日志面板就是按这个方式接进来的。** 因此 `src/Extension/` 整个目录
+不含任何相机相关代码，可以整包搬到其他上位机（PLC、运动控制卡、测试台）：
+新宿主只需实现一个 `IToolProvider`（把已有业务函数包成工具，几十行），
+面板、会话历史、知识库、多步循环全部复用。
+
+依赖方向是单向的：**宿主 → 接口 ← 通用层**。通用层不反向依赖宿主。
 
 ---
 

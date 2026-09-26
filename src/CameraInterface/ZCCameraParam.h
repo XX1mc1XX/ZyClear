@@ -179,15 +179,17 @@ public:
         return QString("unknow");
     }
 
-    bool isValid()
+    // 三个都是只读查询，标 const 才能在 const 上下文里用
+    // （同文件的 displayText() 一直是 const，这三个是漏了）
+    bool isValid() const
     {
         return _accessMode.valid;
     }
-    bool isReadable()
+    bool isReadable() const
     {
         return _accessMode.readable;
     }
-    bool isWriteable()
+    bool isWriteable() const
     {
         return _accessMode.writeable;
     }

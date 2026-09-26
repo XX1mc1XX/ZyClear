@@ -50,6 +50,12 @@ set(ZYCLEAR_SOURCES
     ViewWidget/GraphicsView.cpp
     ViewWidget/ImageItem.cpp
     ViewWidget/ViewWidget.cpp
+    # 可扩展面板框架：契约 + 注册处 + 宿主 + 内置面板装配 + 日志面板。
+    # 这一层不依赖 agent4cpp，没有 AI 也能编译。
+    Extension/ExtensionHost.cpp
+    Extension/PanelRegistry.cpp
+    Extension/BuiltinPanels.cpp
+    Extension/LogPanel.cpp
     main.cpp
     mainwindow.cpp
 )
@@ -93,6 +99,11 @@ set(ZYCLEAR_HEADERS
     ViewWidget/GraphicsView.h
     ViewWidget/ImageItem.h
     ViewWidget/ViewWidget.h
+    Extension/ExtensionInterface.h
+    Extension/ExtensionHost.h
+    Extension/PanelRegistry.h
+    Extension/BuiltinPanels.h
+    Extension/LogPanel.h
     mainwindow.h
 )
 
@@ -112,6 +123,46 @@ if(EXISTS "${HikSDK_ROOT}/Includes" AND EXISTS "${HikSDK_ROOT}/Libraries")
 else()
     set(ZYCLEAR_HAS_HIK_SDK OFF)
     message(STATUS "海康相机 SDK：未找到（${HikSDK_ROOT}），本次仅构建虚拟相机")
+endif()
+
+# agent4cpp 属可选依赖（自然语言控制相机），与海康 SDK 同一策略：
+# 找不到就不参与编译，程序退化为纯相机客户端，两种配置都能构建成功。
+# 注意：agent4cpp 是闭源商业授权库，其二进制与头文件不随本仓库分发，
+# 需要 AI 功能时用 -DZYCLEAR_AI_ROOT=<安装前缀> 指向本机安装位置。
+set(ZYCLEAR_AI_ROOT "" CACHE PATH "agent4cpp 安装前缀（含 lib/cmake/agent4cpp）")
+if(ZYCLEAR_AI_ROOT)
+    find_package(agent4cpp CONFIG QUIET PATHS "${ZYCLEAR_AI_ROOT}")
+else()
+    find_package(agent4cpp CONFIG QUIET)
+endif()
+
+if(agent4cpp_FOUND)
+    set(ZYCLEAR_HAS_AI ON)
+    list(APPEND ZYCLEAR_SOURCES
+        # 通用 AI 层：不认识相机，整个 Extension/ 目录可直接搬到别的客户端
+        Extension/Ai/AiConfig.cpp
+        Extension/Ai/AiAgentService.cpp
+        Extension/Ai/AiPanel.cpp
+        Extension/Ai/AiSettingsDialog.cpp
+        Extension/Ai/AiDialogs.cpp
+        Extension/Ai/HistoryStore.cpp
+        # 宿主适配层：只有这里认识相机
+        Integration/CameraToolProvider.cpp
+    )
+    list(APPEND ZYCLEAR_HEADERS
+        Extension/Ai/ToolProviderInterface.h
+        Extension/Ai/AiConfig.h
+        Extension/Ai/AiAgentService.h
+        Extension/Ai/AiPanel.h
+        Extension/Ai/AiSettingsDialog.h
+        Extension/Ai/AiDialogs.h
+        Extension/Ai/HistoryStore.h
+        Integration/CameraToolProvider.h
+    )
+    message(STATUS "AI 助手：已接入 agent4cpp（${agent4cpp_DIR}）")
+else()
+    set(ZYCLEAR_HAS_AI OFF)
+    message(STATUS "AI 助手：未找到 agent4cpp（ZYCLEAR_AI_ROOT=${ZYCLEAR_AI_ROOT}），本次不构建 AI 功能")
 endif()
 
 # 生成 zyClear.exe。WIN32 表示 GUI 程序，启动时不带黑控制台窗口
@@ -157,6 +208,28 @@ if(ZYCLEAR_HAS_HIK_SDK)
     target_link_libraries(zyClear PRIVATE MvCameraControl)
     # 源码据此条件编译适配器与工厂注册
     target_compile_definitions(zyClear PRIVATE ZYCLEAR_HAS_HIK_SDK)
+endif()
+
+# AI 助手：链接 agent4cpp，并把它的运行时依赖一并拷到 bin/，
+# 这样 exe 双击就能跑，不用手工配 PATH（与 Qt / OpenCV 的做法一致）
+if(ZYCLEAR_HAS_AI)
+    target_link_libraries(zyClear PRIVATE agent4cpp::agent4cpp)
+    # 源码据此条件编译 AI 面板与主窗口的第 4 栏
+    target_compile_definitions(zyClear PRIVATE ZYCLEAR_HAS_AI)
+
+    add_custom_command(TARGET zyClear POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "$<TARGET_FILE:agent4cpp::agent4cpp>" "${ZYCLEAR_BIN_DIR}"
+        COMMENT "拷贝 agent4cpp 运行时")
+
+    # libcurl 的 DLL 与 CA 证书是 agent4cpp 的运行时依赖，缺了会在启动时报错
+    foreach(_aiRuntimeFile libcurl-x64.dll curl-ca-bundle.crt)
+        if(EXISTS "${ZYCLEAR_AI_ROOT}/bin/${_aiRuntimeFile}")
+            add_custom_command(TARGET zyClear POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${ZYCLEAR_AI_ROOT}/bin/${_aiRuntimeFile}" "${ZYCLEAR_BIN_DIR}")
+        endif()
+    endforeach()
 endif()
 
 # 不管 Debug 还是 Release，exe 统一输出到版本根 bin 目录（ZYCLEAR_BIN_DIR 在顶层 CMakeLists 里定义）。
