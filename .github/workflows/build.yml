@@ -41,3 +41,52 @@ jobs:
 
       - name: 运行单元测试
         run: ctest --test-dir build --output-on-failure
+
+  # 静态分析单独成一个 job：它比构建慢，且规则随 clang-tidy 版本演进，
+  # 混在构建 job 里会让「代码能不能编过」这件事被无关告警淹没。
+  #
+  # continue-on-error：结论先以报告形式给出，不卡合并。
+  # 需要把某一类问题变成硬性门禁时，去掉这一行，并在 .clang-tidy 里相应加严。
+  static-analysis:
+    name: 静态分析（clang-tidy）
+    runs-on: ubuntu-latest
+    continue-on-error: true
+
+    steps:
+      - name: 检出源码
+        uses: actions/checkout@v4
+
+      - name: 安装依赖
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            cmake \
+            ninja-build \
+            clang-tidy \
+            qt6-base-dev \
+            qt6-base-dev-tools \
+            libgl1-mesa-dev \
+            libopencv-dev
+
+      - name: 配置（导出编译数据库）
+        run: |
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+            -DHikSDK_ROOT=/nonexistent
+
+      # 规则全部来自仓库根的 .clang-tidy，本地与流水线用同一份，结论一致。
+      # -P4 并行：单文件几十秒，串行跑完整个 src 太久
+      - name: 分析
+        run: |
+          find src -name '*.cpp' -print0 \
+            | xargs -0 -n1 -P4 clang-tidy -p build --quiet 2>&1 | tee clang-tidy.log
+          echo "::notice::clang-tidy 告警 $(grep -c 'warning:' clang-tidy.log || echo 0) 条"
+
+      - name: 上传分析结果
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: clang-tidy-log
+          path: clang-tidy.log
