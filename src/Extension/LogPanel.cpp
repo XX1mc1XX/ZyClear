@@ -19,17 +19,14 @@
 
 namespace {
 
-// 应用日志的内存缓冲。这是个环形缓冲：只保留最近若干行，
-// 否则程序跑一整天会把内存吃光。
+// 环形缓冲，只留最近若干行，避免长时间运行吃光内存
 QStringList g_applicationLog;
 QMutex g_applicationLogMutex;
 const int kMaxApplicationLogLines = 2000;
 
-// 读文件尾部时最多读多少字节
 const qint64 kMaxTailBytes = 256 * 1024;
 
-// 原消息处理器。装钩子之后要把它转发回去，
-// 否则调试器的输出窗口里就再也看不到 qDebug 了
+// 装钩子后必须转发给原处理器，否则调试器里看不到 qDebug
 QtMessageHandler g_previousHandler = nullptr;
 
 const char* LevelName(QtMsgType type)
@@ -63,7 +60,6 @@ void MessageHandler(QtMsgType type, const QMessageLogContext& context, const QSt
         }
     }
 
-    // 继续交给原来的处理器，别把调试器输出截断
     if (g_previousHandler != nullptr) {
         g_previousHandler(type, context, message);
     }
@@ -93,7 +89,7 @@ LogPanel::LogPanel(QWidget* parent)
     connect(m_pSourceTabs, &QTabBar::currentChanged, this, &LogPanel::OnSourceChanged);
     connect(m_pRefreshTimer, &QTimer::timeout, this, &LogPanel::OnRefresh);
 
-    // 1.5 秒刷一次。日志是给人看的，不需要更实时
+    // 1.5 秒刷一次，日志不需要更实时
     m_pRefreshTimer->start(1500);
     OnRefresh();
 }
@@ -106,8 +102,7 @@ void LogPanel::setupUi()
 {
     setObjectName("LogPanel");
 
-    // 同理：底部面板不设最小高度会缩成一条线；给一个能看出内容的下限，
-    // 再小就只剩标签栏了
+    // 不设最小高度，底部面板会缩成只剩一条标签栏
     setMinimumHeight(60);
 
     m_pSourceTabs->setObjectName("logSourceTabs");
@@ -143,8 +138,6 @@ void LogPanel::setupUi()
 
 void LogPanel::InstallMessageHandler()
 {
-    // 只装一次。装完 qDebug / qWarning 的内容就同时进内存缓冲，
-    // 界面里那个「应用日志」标签才有东西可看。
     if (g_previousHandler == nullptr) {
         g_previousHandler = qInstallMessageHandler(MessageHandler);
     }
@@ -157,8 +150,7 @@ QString LogPanel::NewestFileIn(const QString& directory, const QString& suffix)
         return QString();
     }
 
-    // 不传后缀表示「任意文件」，传了后缀就按后缀过滤。
-    // 两种情况的 entryInfoList 重载不同，所以分开写而不是塞进一个三元表达式。
+    // 两种情况的 entryInfoList 重载不同，没法合成一个三元表达式
     const QFileInfoList entries = suffix.isEmpty()
         ? dir.entryInfoList(QDir::Files, QDir::Time)
         : dir.entryInfoList(QStringList { QStringLiteral("*.") + suffix }, QDir::Files, QDir::Time);
@@ -173,7 +165,6 @@ QString LogPanel::ReadTail(const QString& filePath) const
         return QStringLiteral("(打不开文件：%1)").arg(filePath);
     }
 
-    // 只读尾部：日志可能很大，全读进来会卡住界面
     const qint64 size = file.size();
     if (size > kMaxTailBytes) {
         file.seek(size - kMaxTailBytes);
@@ -197,7 +188,6 @@ void LogPanel::OnRefresh()
 
     switch (m_currentSource) {
     case 0: {
-        // AI 助手日志：agent4cpp 每一步决定调什么工具都会写在这里
         const QString file = NewestFileIn(appDir + QStringLiteral("/agent4cpp_log"),
             QStringLiteral("txt"));
         if (file.isEmpty()) {
@@ -211,7 +201,6 @@ void LogPanel::OnRefresh()
         break;
     }
     case 1: {
-        // 相机 SDK 自己的运行日志，落盘位置由适配器设置
         const QString dir = appDir + QStringLiteral("/MvSDKLog");
         const QString file = NewestFileIn(dir, QString());
         if (file.isEmpty()) {
@@ -225,7 +214,6 @@ void LogPanel::OnRefresh()
         break;
     }
     default: {
-        // 应用日志：由 qInstallMessageHandler 钩子收集
         QMutexLocker locker(&g_applicationLogMutex);
         content = g_applicationLog.isEmpty()
             ? QStringLiteral("程序自身的 qDebug / qWarning 会显示在这里。")
@@ -250,6 +238,6 @@ void LogPanel::OnRefresh()
 
 void LogPanel::OnClearClicked()
 {
-    // 只清显示，不动磁盘上的日志文件 —— 清文件是不可逆操作，不该由一个按钮代劳
+    // 只清显示，不动磁盘上的日志文件
     m_pView->clear();
 }

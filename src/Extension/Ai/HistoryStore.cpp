@@ -15,7 +15,7 @@ const char* kFileSuffix = ".json";
 
 QString AiSession::subtitle() const
 {
-    // createdAt 形如 "2026-09-27 14:02:11"；列表里只用「月-日 时:分」就够
+    // createdAt 形如 "2026-09-27 14:02:11"，这里取「月-日 时:分」
     const QString stamp = createdAt.size() >= 16
         ? createdAt.mid(5, 11)
         : createdAt;
@@ -125,7 +125,7 @@ QList<AiSession> HistoryStore::List()
 
     const QFileInfoList files = dir.entryInfoList(
         QStringList { QStringLiteral("*") + QString::fromLatin1(kFileSuffix) },
-        QDir::Files, QDir::Time); // 按修改时间倒序，最新的排最前
+        QDir::Files, QDir::Time);
 
     for (const QFileInfo& info : files) {
         AiSession session = Load(info.completeBaseName());

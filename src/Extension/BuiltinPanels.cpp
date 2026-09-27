@@ -14,12 +14,7 @@ namespace {
 
 #ifdef ZYCLEAR_HAS_AI
 
-// 把 AI 面板适配成「一个可停靠面板」。
-//
-// 【为什么用适配器而不是让 AiPanel 直接继承 IPanel】
-//   AiPanel 的职责是「聊天界面」，不该同时背上面板注册、停靠位置这些事。
-//   加一层适配器之后，AiPanel 保持干净，将来换掉面板框架也不用动它 ——
-//   和相机适配器是同一个用法。
+// 适配器：AiPanel 只管聊天界面，不背面板注册与停靠位置的职责
 class AiPanelExtension : public IPanel {
 public:
     explicit AiPanelExtension(const QList<IToolProvider*>& providers)
@@ -40,7 +35,6 @@ public:
     QWidget* CreateWidget(QWidget* parent) override
     {
         auto* panel = new AiPanel(parent);
-        // 宿主能力在这里注入进去 —— 面板本身不知道这是相机还是别的什么
         panel->SetToolProviders(m_providers);
         return panel;
     }
@@ -56,7 +50,6 @@ private:
 
 #endif // ZYCLEAR_HAS_AI
 
-// 日志面板：三份日志并列成标签页，默认停靠在底部
 class LogPanelExtension : public IPanel {
 public:
     QString PanelId() const override
@@ -79,7 +72,7 @@ public:
         return Qt::BottomDockWidgetArea;
     }
 
-    // 底部面板默认收起：图像区本来就该占大头，需要看日志时再点开
+    // 底部日志默认收起，图像区占大头
     bool VisibleByDefault() const override
     {
         return false;

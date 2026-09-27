@@ -17,11 +17,7 @@
 
 namespace {
 
-// 给模型定身份和纪律。
-//
-// 这段文案直接决定行为边界，尤其是第 2 条：
-// 设备状态必须来自工具，不能让模型凭常识编 ——
-// 「相机曝光大概 5000 微秒」这种话听起来合理，但和真实设备毫无关系。
+// 尤其第 2 条：设备状态必须来自工具，不能让模型凭常识编
 const char* kBaseSystemPrompt =
     "你是这个上位机软件的操作助手。几条纪律："
     "1) 用户会用日常说法描述问题，你需要把它翻译成具体的操作；"
@@ -30,8 +26,6 @@ const char* kBaseSystemPrompt =
     "3) 改参数前先看清取值范围，改完以回读值为准；"
     "4) 最后用一句中文总结你做了什么、结果如何。回答简短，不要长篇解释。";
 
-// 从完整对话记录里把「模型要求调用哪些工具」抽出来。
-// 界面把这串显示给用户看，AI 就不再是个黑盒。
 QStringList BuildTrace(const std::vector<agent4cpp::ChatMessage>& transcript)
 {
     QStringList trace;
@@ -55,12 +49,9 @@ AiAgentService::AiAgentService(QObject* parent)
 {
     m_session = HistoryStore::CreateNew();
 
-    // watcher 在主线程收到完成通知，再转成自己的信号发出去
     connect(m_watcher, &QFutureWatcher<AiResult>::finished, this, [this]() {
         const AiResult result = m_watcher->result();
 
-        // 把这一轮写进当前会话并落盘。
-        // 只有成功或失败都记 —— 失败也是「这次我问过什么」的一部分。
         AiTurn turn;
         turn.question = m_pendingQuestion;
         turn.answer = result.answer;
@@ -69,7 +60,6 @@ AiAgentService::AiAgentService(QObject* parent)
         m_session.turns.append(turn);
 
         if (m_session.title.isEmpty()) {
-            // 用第一句问题当标题，够认出是哪次对话
             m_session.title = m_pendingQuestion.left(24);
         }
         HistoryStore::Save(m_session);
@@ -95,7 +85,6 @@ void AiAgentService::SetToolProviders(const QList<IToolProvider*>& providers)
 
 void AiAgentService::BuildAgent()
 {
-    // 工具登记处每次重建：配置或提供者变化后不残留上一次的注册状态
     m_registry = std::make_unique<agent4cpp::ToolRegistry>();
 
     for (IToolProvider* provider : m_providers) {
@@ -106,16 +95,12 @@ void AiAgentService::BuildAgent()
 
     const AiConfig config = AiConfig::Load();
 
-    // 没有可用工具、或者模型配置不全，就不建 Agent。
-    // 界面据此禁用输入框并给出提示，而不是让用户对着没反应的按钮。
     if (!config.IsValid() || m_providers.isEmpty()) {
         m_agent.reset();
         return;
     }
 
-    // ★ agent4cpp 不接收 Key 本身，只接收「环境变量名」。
-    //   所以这里把界面填的 Key 注入进程内环境变量，再把名字交给它。
-    //   这样 Key 不会出现在源码、配置文件或日志里。
+    // agent4cpp 只接收环境变量名而非 Key 本身，这里注入进程内环境变量再把名字交给它
     const QString envName = config.ApplyApiKeyToEnv();
 
     agent4cpp::OpenAICompatibleLLMConfig llmConfig;
@@ -128,8 +113,6 @@ void AiAgentService::BuildAgent()
 
     auto client = std::make_shared<agent4cpp::OpenAICompatibleLLMClient>(llmConfig);
 
-    // 系统提示词由「通用纪律」+「本客户端能操作什么」拼成。
-    // 后半段来自注入的工具提供者，所以换个客户端这里自动就变了。
     QString systemPrompt = QString::fromUtf8(kBaseSystemPrompt);
     for (IToolProvider* provider : m_providers) {
         if (provider == nullptr) {
@@ -142,7 +125,7 @@ void AiAgentService::BuildAgent()
     agent4cpp::AgentConfig agentConfig;
     agentConfig.system_prompt = systemPrompt.toStdString();
     agentConfig.max_steps = 8; // 兜底，防止模型反复调工具不收敛
-    agentConfig.knowledge_store = m_knowledge.get(); // 没导入过文档就是 nullptr，会自动跳过
+    agentConfig.knowledge_store = m_knowledge.get();
     agentConfig.knowledge_top_k = 3;
 
     m_agent = std::make_shared<agent4cpp::Agent>(agentConfig, m_registry.get(), client);
@@ -177,7 +160,6 @@ QStringList AiAgentService::ExamplePrompts() const
 
 void AiAgentService::ReloadConfig()
 {
-    // 正在问答时不动：后台线程正握着 Agent，重建会让它读到半截状态
     if (m_busy) {
         return;
     }
@@ -187,7 +169,7 @@ void AiAgentService::ReloadConfig()
 void AiAgentService::Ask(const QString& question)
 {
     if (m_busy) {
-        return; // 上一轮还没回来
+        return;
     }
 
     const QString trimmed = question.trimmed();
@@ -206,8 +188,7 @@ void AiAgentService::Ask(const QString& question)
     m_pendingQuestion = trimmed;
     emit SigBusyChanged(true);
 
-    // 用一份智能指针快照跑这一轮：即使主线程随后重建了 Agent，
-    // 这一轮仍然操作原来的对象，不会读到悬空的指针
+    // 用快照跑这一轮：主线程随后重建 Agent 也不会让本轮读到悬空指针
     const std::shared_ptr<agent4cpp::Agent> agent = m_agent;
 
     m_watcher->setFuture(QtConcurrent::run([agent, trimmed]() -> AiResult {
@@ -230,10 +211,6 @@ void AiAgentService::Ask(const QString& question)
     }));
 }
 
-// =============================================================================
-// 会话历史
-// =============================================================================
-
 void AiAgentService::StartNewSession()
 {
     if (m_busy) {
@@ -243,7 +220,7 @@ void AiAgentService::StartNewSession()
     m_session = HistoryStore::CreateNew();
 
     if (m_agent != nullptr) {
-        m_agent->Reset(); // 清空模型侧上下文，开一段新对话
+        m_agent->Reset();
     } else {
         BuildAgent();
     }
@@ -259,7 +236,6 @@ QList<AiSession> AiAgentService::Sessions() const
 bool AiAgentService::DeleteSession(const QString& id)
 {
     if (id == m_session.id) {
-        // 删的正好是当前会话：删完顺手开一个新的，免得界面停在已删状态
         const bool removed = HistoryStore::Remove(id);
         if (removed) {
             m_session = HistoryStore::CreateNew();
@@ -277,10 +253,6 @@ bool AiAgentService::DeleteSession(const QString& id)
     }
     return removed;
 }
-
-// =============================================================================
-// 知识库（轻量 RAG）
-// =============================================================================
 
 void AiAgentService::EnsureKnowledgeStore()
 {
@@ -309,8 +281,7 @@ int AiAgentService::ImportKnowledge(const QStringList& files)
             continue;
         }
 
-        // 自己切块而不是调 LoadTextFile，是为了能数出到底进了多少片段，
-        // 界面要显示这个数字让用户确认导入真的生效了。
+        // 自己切块而不用 LoadTextFile，是为了数出片段数给界面显示
         const QString name = QFileInfo(path).fileName();
         const std::vector<agent4cpp::DocumentChunk> chunks
             = agent4cpp::ChunkText(text.toStdString(), name.toStdString());
@@ -327,10 +298,8 @@ int AiAgentService::ImportKnowledge(const QStringList& files)
     }
 
     if (imported > 0) {
-        // 重建 Agent 让它挂上新知识库。
-        // 注意这会重置模型侧的对话上下文 —— 因为 agent4cpp 没有「把历史消息
-        // 注入回 Agent」的入口，所以这里顺手开一段新会话，语义上更诚实：
-        // 用户看得见「导入资料后开了一段新对话」，而不是以为上下文还在。
+        // 重建 Agent 会重置模型侧对话上下文（agent4cpp 没有注入历史消息的入口），
+        // 所以顺手开一段新会话，让用户看得见上下文已重置
         m_session = HistoryStore::CreateNew();
         BuildAgent();
         emit SigKnowledgeChanged();

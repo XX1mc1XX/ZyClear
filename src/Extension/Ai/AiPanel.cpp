@@ -16,7 +16,6 @@
 
 namespace {
 
-// 三种角色用三种颜色，一眼分清谁在说话
 const char* kColorUser = "#1a73e8";
 const char* kColorAssistant = "#188038";
 const char* kColorError = "#d93025";
@@ -71,8 +70,6 @@ void AiPanel::setupUi()
 {
     setObjectName("AiPanel");
 
-    // 侧边栏可以拖得很窄，和 VS Code 一样。下限只留 60：
-    // 内部控件都已经允许压缩，窄到极限时内容被裁而不是把面板顶住。
     setMinimumWidth(60);
 
     m_pTitleLabel->setObjectName("aiTitle");
@@ -89,7 +86,6 @@ void AiPanel::setupUi()
     m_pInput->setMinimumWidth(0);
     m_pInput->installEventFilter(this);
 
-    // 图标用 Qt 自带的标准图标，不额外往资源里加图片
     m_pNewSessionButton->setIcon(style()->standardIcon(QStyle::SP_FileDialogNewFolder));
     m_pNewSessionButton->setToolTip(QStringLiteral("开始新会话（清空当前上下文）"));
     m_pNewSessionButton->setAutoRaise(true);
@@ -108,14 +104,12 @@ void AiPanel::setupUi()
 
     m_pSendButton->setMinimumWidth(0);
 
-    // 第一行：标题 + 状态
     QHBoxLayout* titleLayout = new QHBoxLayout();
     titleLayout->setContentsMargins(0, 0, 0, 0);
     titleLayout->addWidget(m_pTitleLabel);
     titleLayout->addStretch();
     titleLayout->addWidget(m_pStatusLabel);
 
-    // 第二行：全部操作入口，图标化后排在一行，窄了也不会换行错位
     QHBoxLayout* actionLayout = new QHBoxLayout();
     actionLayout->setContentsMargins(0, 0, 0, 0);
     actionLayout->setSpacing(2);
@@ -165,8 +159,7 @@ void AiPanel::appendWelcome()
 
 void AiPanel::appendBubble(const QString& title, const QString& body, const QString& color)
 {
-    // toHtmlEscaped 是必须的：模型输出里可能带 < > 之类字符，
-    // 直接拼进 HTML 会被当成标签，轻则显示错乱，重则执行脚本
+    // 模型输出可能带 < > 等字符，不转义会被当成 HTML 标签
     QString escaped = body.toHtmlEscaped();
     escaped.replace(QLatin1Char('\n'), QStringLiteral("<br/>"));
 
@@ -204,8 +197,6 @@ void AiPanel::setStatus(const QString& text)
 
 void AiPanel::refreshHeader()
 {
-    // 停靠面板的标题栏已经写着「AI 助手」了，这里不再重复，
-    // 改成显示更有用的信息：当前会不会带参考资料一起问。
     const int files = m_pService->KnowledgeFileCount();
     if (files > 0) {
         m_pTitleLabel->setText(QStringLiteral("资料 %1").arg(files));
@@ -224,7 +215,6 @@ bool AiPanel::eventFilter(QObject* watched, QEvent* event)
         QKeyEvent* keyEvent = static_cast<QKeyEvent*>(event);
         const bool isEnter
             = keyEvent->key() == Qt::Key_Return || keyEvent->key() == Qt::Key_Enter;
-        // 回车发送，Shift+回车换行 —— 和常见的聊天工具一致
         if (isEnter && !(keyEvent->modifiers() & Qt::ShiftModifier)) {
             onSendClicked();
             return true;

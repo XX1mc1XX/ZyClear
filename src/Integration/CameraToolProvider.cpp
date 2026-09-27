@@ -29,16 +29,11 @@
 
 namespace {
 
-// =============================================================================
-// 一、跨界工具：agent4cpp 的 ToolResult 构造
-// =============================================================================
-
 std::string ToJson(const QJsonObject& object)
 {
     return QJsonDocument(object).toJson(QJsonDocument::Compact).toStdString();
 }
 
-// 成功的返回：一句人话 + 结构化数据
 agent4cpp::ToolResult MakeOk(const QString& content, const QJsonObject& payload)
 {
     agent4cpp::ToolResult result;
@@ -48,11 +43,7 @@ agent4cpp::ToolResult MakeOk(const QString& content, const QJsonObject& payload)
     return result;
 }
 
-// 失败的返回。
-//
-// ★ 失败也照样回灌给模型（不是中断循环）——模型看到原因才能自我修正。
-//   所以这里的文案是写给模型看的：说清「哪里错、错在哪、可接受范围是什么」，
-//   而不是只丢一句 "failed"。
+// 失败也回灌给模型（不中断循环），文案要写清错误原因
 agent4cpp::ToolResult MakeError(const QString& content, const QJsonObject& payload = {})
 {
     agent4cpp::ToolResult result;
@@ -62,13 +53,7 @@ agent4cpp::ToolResult MakeError(const QString& content, const QJsonObject& paylo
     return result;
 }
 
-// 【为什么需要它】AI 循环跑在后台线程，而 CameraContext 背后的
-// CameraInterface 不是线程安全的，用户也可能同时在点界面。
-// 所以所有相机操作统一切回主线程执行，天然和界面操作串行，
-// 不需要给相机的每个方法加锁。
-//
-// 代价：调用期间主线程的事件队列被这个任务占用。但单次工具调用是毫秒级
-// （虚拟相机更快），真正耗时的「等模型回复」在后台线程，所以界面不会卡。
+// CameraInterface 非线程安全，相机操作统一切回主线程串行执行，免加锁
 agent4cpp::ToolResult RunOnUiThread(const std::function<agent4cpp::ToolResult()>& body)
 {
     QCoreApplication* app = QCoreApplication::instance();
@@ -82,8 +67,6 @@ agent4cpp::ToolResult RunOnUiThread(const std::function<agent4cpp::ToolResult()>
     return result;
 }
 
-// 把「收 JSON、在主线程里干活」的函数包装成 agent4cpp 要的 ToolInvoker。
-// 参数解析留在后台线程（不需要碰相机），只有 body 切回主线程。
 agent4cpp::ToolInvoker UiTool(std::function<agent4cpp::ToolResult(const QJsonObject&)> body)
 {
     return [body](const std::string& arguments_json) -> agent4cpp::ToolResult {
@@ -100,12 +83,6 @@ agent4cpp::ToolInvoker UiTool(std::function<agent4cpp::ToolResult(const QJsonObj
     };
 }
 
-// =============================================================================
-// 二、参数解析的小工具
-// =============================================================================
-
-// 工具大多作用于「某台相机」。没显式给序列号就用界面上当前选中的那台，
-// 这样用户在界面上选好相机后可以直接说「曝光调亮一点」。
 QString ResolveSerial(const QJsonObject& arguments, QString* error)
 {
     QString serial = arguments.value(QStringLiteral("serial")).toString().trimmed();
@@ -119,8 +96,6 @@ QString ResolveSerial(const QJsonObject& arguments, QString* error)
     return serial;
 }
 
-// 错误码 → 给模型看的中文说明。
-// 直接丢代码（0x0005）模型看不懂，也就没法决定下一步怎么办。
 QString DescribeError(uint32_t code)
 {
     return QStringLiteral("%1（错误码 %2）")
@@ -128,7 +103,6 @@ QString DescribeError(uint32_t code)
         .arg(code, 0, 16);
 }
 
-// 把 JSON 值写成一句人能读的话，用于错误提示里回显模型给的那个值
 QString DescribeJsonValue(const QJsonValue& value)
 {
     if (value.isString()) {
@@ -146,7 +120,7 @@ QString DescribeJsonValue(const QJsonValue& value)
     return QStringLiteral("（复合值）");
 }
 
-// 把 CameraParam 转成 JSON。只读项默认不返回，避免 37 个参数的清单把上下文塞满。
+// 只读项默认不返回，避免参数清单把上下文撑满
 QJsonObject ParamToJson(const CameraParam& param, bool includeValue)
 {
     QJsonObject object;
@@ -223,7 +197,6 @@ QJsonObject ParamToJson(const CameraParam& param, bool includeValue)
     return object;
 }
 
-// 从设备上把某台相机的参数全部读出来。找不到相机或读失败时返回错误说明。
 QString FetchParams(const QString& serial, QVector<CameraParam>* params)
 {
     const uint32_t code = CameraContext::Instance()->getParamList(serial, *params);
@@ -233,7 +206,6 @@ QString FetchParams(const QString& serial, QVector<CameraParam>* params)
     return QString();
 }
 
-// 在参数表里按名字找一个（设备上报的名字区分大小写，这里做宽松匹配更好用）
 bool FindParam(const QVector<CameraParam>& params, const QString& name, CameraParam* out)
 {
     for (const CameraParam& param : params) {
@@ -242,7 +214,6 @@ bool FindParam(const QVector<CameraParam>& params, const QString& name, CameraPa
             return true;
         }
     }
-    // 退一步做不区分大小写的匹配
     for (const CameraParam& param : params) {
         if (param.name().compare(name, Qt::CaseInsensitive) == 0) {
             *out = param;
@@ -252,23 +223,14 @@ bool FindParam(const QVector<CameraParam>& params, const QString& name, CameraPa
     return false;
 }
 
-// ★ 把模型给的值装进 CameraParam，并按类型和范围校验。
-//
-//   这是整层最容易出错的地方：模型给的值来自一段自然语言推理，
-//   可能超范围、可能类型不对、可能给个设备根本不认的枚举项。
-//   在这里拦住并说清原因，模型下一轮就会改对；
-//   放过去则要么写失败、要么写进去一个非法值。
-//
-//   返回空字符串表示成功，否则是给模型看的错误说明。
+// 值来自模型推理，可能超范围或类型不对，在这里拦住并说明原因
 QString ApplyValue(CameraParam& param, const QJsonValue& value)
 {
     switch (param.type()) {
     case INT: {
         IntParam target = param.GetValue().value<IntParam>();
 
-        // 宽容解析：模型可能给数字 8000，也可能给字符串 "8000"。
-        // 工具签名把这些值声明成字符串参数，所以字符串形式反而更常见，
-        // 只认数字会把一大批本来正确的调用判死。
+        // 模型常把数值写成字符串，数字和字符串两种形式都收
         bool parsed = false;
         int64_t number = 0;
         if (value.isDouble()) {
@@ -365,7 +327,6 @@ QString ApplyValue(CameraParam& param, const QJsonValue& value)
                 index = target.availableValue.indexOf(value.toString(), 0);
             }
         } else if (value.isDouble()) {
-            // 也允许用枚举序号来指定
             const int number = static_cast<int>(value.toDouble());
             if (number >= 0 && number < target.availableValue.size()) {
                 index = number;
@@ -373,8 +334,6 @@ QString ApplyValue(CameraParam& param, const QJsonValue& value)
         }
 
         if (index < 0) {
-            // ★ 把可选项全列出来。模型看到清单下一轮就能改对，
-            //   这比只回一句「枚举值无效」有用得多。
             QStringList options;
             for (const QString& item : target.availableValue) {
                 options << item;
@@ -400,17 +359,12 @@ QString ApplyValue(CameraParam& param, const QJsonValue& value)
     return QStringLiteral("参数 %1 的类型未知，无法写入").arg(param.name());
 }
 
-// =============================================================================
-// 三、各个工具
-// =============================================================================
-
 agent4cpp::ToolResult ToolListCameras(const QJsonObject& arguments)
 {
     const bool refresh = arguments.value(QStringLiteral("refresh")).toBool(false);
 
     if (!refresh) {
-        // ★ 不做扫描。扫描（EnumerationCamera）会把已连接的相机全部断开再重建注册表，
-        //   这是个有副作用的操作，不能因为模型随口一问就执行。
+        // 扫描会断开所有已连接相机，不能因模型随口一问就执行
         const QString current = CameraContext::Instance()->currentSerial();
         QJsonObject payload;
         payload.insert(QStringLiteral("current_serial"), current);
@@ -554,7 +508,7 @@ agent4cpp::ToolResult ToolListParams(const QJsonObject& arguments)
     int writeable = 0;
     for (const CameraParam& param : params) {
         if (!param.isValid()) {
-            continue; // 设备不支持这一项，直接跳过
+            continue;
         }
         ++total;
         if (param.isWriteable()) {
@@ -651,7 +605,6 @@ agent4cpp::ToolResult ToolSetParam(const QJsonObject& arguments)
         return MakeError(QStringLiteral("参数 %1 当前不可写（只读项或设备未开放）。").arg(name));
     }
 
-    // ★ 类型与范围校验都在这里。不合格就带着原因返回，模型下一轮会改。
     const QString applyError = ApplyValue(target, arguments.value(QStringLiteral("value")));
     if (!applyError.isEmpty()) {
         return MakeError(QStringLiteral("写入被拒绝：%1").arg(applyError));
@@ -662,8 +615,7 @@ agent4cpp::ToolResult ToolSetParam(const QJsonObject& arguments)
         return MakeError(QStringLiteral("写入参数 %1 失败：%2").arg(name, DescribeError(code)));
     }
 
-    // ★ 写后回读。设备可能内部做了取整或钳位，真实生效值以回读为准。
-    //   只回报「已写入」而不回报实际值，模型就会以为自己改成功了。
+    // 设备可能内部取整或钳位，回读才能拿到实际生效值
     CameraParam readback = target;
     const uint32_t readCode = context->readParam(serial, readback);
 
@@ -727,8 +679,6 @@ agent4cpp::ToolResult ToolStopGrab(const QJsonObject& arguments)
     return MakeOk(QStringLiteral("相机 %1 已停止拉流。").arg(serial), payload);
 }
 
-// ★ 本层最关键的工具。大模型看不到图像，只能基于数字推理，
-//   所以这里把一帧画面量化成有语义的指标，并给出判定结论。
 agent4cpp::ToolResult ToolFrameStats(const QJsonObject& arguments)
 {
     QString error;
@@ -748,11 +698,9 @@ agent4cpp::ToolResult ToolFrameStats(const QJsonObject& arguments)
         return MakeError(QStringLiteral("取到的图像为空。"));
     }
 
-    // 转成 8 位灰度再算指标。彩色图直接算均值会把颜色差异混进来
     const QImage gray = image.convertToFormat(QImage::Format_Grayscale8);
 
-    // QImage 的每一行可能有对齐填充，所以要把 bytesPerLine 传给 cv::Mat，
-    // 不能想当然按 width 去算步长
+    // QImage 每行有对齐填充，步长必须用 bytesPerLine，不能按 width 算
     const cv::Mat grayMat(gray.height(), gray.width(), CV_8UC1,
         const_cast<uchar*>(gray.constBits()), static_cast<size_t>(gray.bytesPerLine()));
 
@@ -760,10 +708,9 @@ agent4cpp::ToolResult ToolFrameStats(const QJsonObject& arguments)
     cv::Scalar stddevScalar;
     cv::meanStdDev(grayMat, meanScalar, stddevScalar);
 
-    const double brightness = meanScalar[0] / 255.0; // 归一化到 0~1，模型更容易理解
+    const double brightness = meanScalar[0] / 255.0;
     const double contrast = stddevScalar[0];
 
-    // 过曝 / 欠曝像素占比
     cv::Mat overMask;
     cv::Mat underMask;
     cv::compare(grayMat, cv::Scalar(250), overMask, cv::CMP_GT);
@@ -773,7 +720,6 @@ agent4cpp::ToolResult ToolFrameStats(const QJsonObject& arguments)
     const double overRatio = total > 0.0 ? cv::countNonZero(overMask) / total : 0.0;
     const double underRatio = total > 0.0 ? cv::countNonZero(underMask) / total : 0.0;
 
-    // 清晰度：拉普拉斯算子的方差。方差越小说明边缘越少，画面越糊
     cv::Mat laplacian;
     cv::Laplacian(grayMat, laplacian, CV_64F);
     cv::Scalar lapMean;
@@ -781,8 +727,6 @@ agent4cpp::ToolResult ToolFrameStats(const QJsonObject& arguments)
     cv::meanStdDev(laplacian, lapMean, lapStddev);
     const double sharpness = lapStddev[0] * lapStddev[0];
 
-    // ★ 判定结论（「语义化观测值」）。没有这一句，模型得自己猜
-    //   brightness=0.31 算不算暗——而它对不同设备、不同工艺的阈值一无所知。
     QString assessment;
     if (brightness < 0.25 || underRatio > 0.35) {
         assessment = QStringLiteral("underexposed");
@@ -833,8 +777,6 @@ QString CameraToolProvider::ProviderName() const
 
 QString CameraToolProvider::ProviderDescription() const
 {
-    // 这段话会拼进系统提示词。写得具体一点，模型才知道
-    // 「画面暗」「糊了」这类日常说法该走工具，而不是凭常识编。
     return QStringLiteral(
         "可以枚举与连接相机、读写相机参数、控制实时拉流，"
         "以及分析当前画面的亮度/过曝/对比度/清晰度。"
@@ -854,8 +796,6 @@ QStringList CameraToolProvider::ExamplePrompts() const
 
 void CameraToolProvider::RegisterTools(agent4cpp::ToolRegistry& registry)
 {
-    // 说明文案是写给模型看的，直接决定它会不会用、什么时候用。
-    // 所以每条都用「什么时候该调 + 有什么副作用」的写法。
     registry.Register(agent4cpp::ToolDefinition {
         "list_cameras",
         "列出当前相机。默认只回报界面上当前选中的相机，不做扫描。"
@@ -924,7 +864,7 @@ void CameraToolProvider::RegisterTools(agent4cpp::ToolRegistry& registry)
         "get_frame_stats",
         "分析当前画面并返回量化指标：亮度、过曝/欠曝像素占比、对比度、清晰度，"
         "以及综合判定结论 assessment（underexposed / overexposed / low_contrast / blurry / normal）。"
-        "★ 用户说画面暗、画面糊、看不清之类的主观描述时，先调它拿到客观数据，"
+        "用户说画面暗、画面糊、看不清之类的主观描述时，先调它拿到客观数据，"
         "再据此决定改哪个参数。相机需要处于拉流状态。",
         { agent4cpp::StringParam("serial", "相机序列号，省略则用当前选中的相机。", false) },
         UiTool(ToolFrameStats) });

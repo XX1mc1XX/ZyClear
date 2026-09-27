@@ -17,8 +17,6 @@ bool PanelRegistry::Register(const QString& id, PanelCreator creator)
         return false;
     }
 
-    // 同一个 id 只允许登记一次：插件不该把内置面板顶掉，
-    // 后加载的也不该悄悄覆盖先加载的
     if (Contains(id)) {
         qWarning() << "面板 id 已存在，忽略重复登记:" << id;
         return false;
@@ -55,17 +53,16 @@ int PanelRegistry::LoadFromLibrary(const QString& libraryPath)
 
     if (countFunction == nullptr || atFunction == nullptr) {
         qWarning() << "扩展库缺少约定的导出函数:" << libraryPath;
-        delete library; // 没派上用场就立刻卸载
+        delete library;
         return 0;
     }
 
-    // 库要活到进程结束：面板对象的方法指向库里的代码，卸载后调用会跳到野地址
     m_libraries.append(library);
 
     int loaded = 0;
     const int count = countFunction();
     for (int index = 0; index < count; ++index) {
-        // 先造一个实例只为读出它的 id，读完即弃
+        // 先造一个实例只为读出 id，读完即弃
         IPanel* probe = atFunction(index);
         if (probe == nullptr) {
             continue;
@@ -77,7 +74,7 @@ int PanelRegistry::LoadFromLibrary(const QString& libraryPath)
             continue;
         }
 
-        // 创建器转发到插件的入口，每次调用都会得到一个新实例
+        // 转发到插件入口，每次调用返回新实例
         if (Register(id, [atFunction, index]() { return atFunction(index); })) {
             ++loaded;
         }

@@ -30,10 +30,6 @@ QString ToHtml(const QString& text)
 
 } // namespace
 
-// =============================================================================
-// 历史会话
-// =============================================================================
-
 SessionDialog::SessionDialog(AiAgentService* service, QWidget* parent)
     : QDialog(parent)
     , m_pService(service)
@@ -167,10 +163,6 @@ void SessionDialog::onDeleteClicked()
     reload();
 }
 
-// =============================================================================
-// 知识库
-// =============================================================================
-
 KnowledgeDialog::KnowledgeDialog(AiAgentService* service, QWidget* parent)
     : QDialog(parent)
     , m_pService(service)
@@ -256,7 +248,6 @@ void KnowledgeDialog::onImportClicked()
         QMessageBox::warning(this, QStringLiteral("导入失败"),
             QStringLiteral("这些文件都没能读入（可能是空文件或没有读取权限）。"));
     } else {
-        // 说清「导入后会自动开一段新对话」，免得用户以为上下文还在
         QMessageBox::information(this, QStringLiteral("导入完成"),
             QStringLiteral("成功导入 %1 个文档。\n\n"
                            "注意：为了让新资料立即生效，会话已经重新开始，"

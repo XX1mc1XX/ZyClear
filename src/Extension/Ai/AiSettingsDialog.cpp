@@ -16,8 +16,7 @@
 
 namespace {
 
-// 常见服务商的预设。选一个就把地址和模型名填好，用户只需要补 Key。
-// 三家都是 OpenAI 兼容接口，所以同一份客户端代码通吃。
+// 三家都是 OpenAI 兼容接口，同一份客户端代码通吃
 struct ProviderPreset {
     const char* name;
     const char* baseUrl;
@@ -67,7 +66,6 @@ void AiSettingsDialog::setupUi()
     m_pBaseUrlEdit->setPlaceholderText(QStringLiteral("https://api.example.com/v1"));
     m_pModelEdit->setPlaceholderText(QStringLiteral("deepseek-chat"));
 
-    // 密码框：Key 不该明晃晃显示在屏幕上，截图、投屏、旁边有人都会漏
     m_pApiKeyEdit->setEchoMode(QLineEdit::Password);
     m_pApiKeyEdit->setPlaceholderText(QStringLiteral("sk-..."));
 
@@ -119,14 +117,13 @@ void AiSettingsDialog::LoadFromConfig()
     m_pApiKeyEdit->setText(config.apiKey);
     m_pMaxTokensSpin->setValue(config.maxTokens);
 
-    // 按当前地址反查是哪家预设，好让下拉框显示正确的项
     for (int index = 0; index < kPresetCount - 1; ++index) {
         if (config.baseUrl == QString::fromUtf8(kPresets[index].baseUrl)) {
             m_pProviderCombo->setCurrentIndex(index);
             return;
         }
     }
-    m_pProviderCombo->setCurrentIndex(kPresetCount - 1); // 自定义
+    m_pProviderCombo->setCurrentIndex(kPresetCount - 1);
 }
 
 void AiSettingsDialog::onProviderChanged(int index)
@@ -138,12 +135,10 @@ void AiSettingsDialog::onProviderChanged(int index)
     const ProviderPreset& preset = kPresets[index];
 
     if (index < kPresetCount - 1) {
-        // 选预设就把地址和模型填好；最后一项「自定义」保持用户已填的内容
         m_pBaseUrlEdit->setText(QString::fromUtf8(preset.baseUrl));
         m_pModelEdit->setText(QString::fromUtf8(preset.model));
     }
 
-    // 提示文字挂在对话框上，用户改选项时能直接看到注意事项
     setToolTip(QString::fromUtf8(preset.hint));
     if (QLabel* hint = findChild<QLabel*>("aiSettingsHint")) {
         hint->setText(QString::fromUtf8(preset.hint));
