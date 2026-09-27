@@ -146,6 +146,7 @@ if(agent4cpp_FOUND)
         Extension/Ai/AiSettingsDialog.cpp
         Extension/Ai/AiDialogs.cpp
         Extension/Ai/HistoryStore.cpp
+        Extension/Ai/ConsoleRunner.cpp
         # 宿主适配层：只有这里认识相机
         Integration/CameraToolProvider.cpp
     )
@@ -157,6 +158,7 @@ if(agent4cpp_FOUND)
         Extension/Ai/AiSettingsDialog.h
         Extension/Ai/AiDialogs.h
         Extension/Ai/HistoryStore.h
+        Extension/Ai/ConsoleRunner.h
         Integration/CameraToolProvider.h
     )
     message(STATUS "AI 助手：已接入 agent4cpp（${agent4cpp_DIR}）")
