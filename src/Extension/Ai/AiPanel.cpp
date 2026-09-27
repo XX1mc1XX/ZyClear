@@ -16,6 +16,7 @@
 
 namespace {
 
+// 面板正文是 HTML 内联样式，QSS 管不到，色值只能写死在这里
 const char* kColorUser = "#1a73e8";
 const char* kColorAssistant = "#188038";
 const char* kColorError = "#d93025";
@@ -169,6 +170,7 @@ void AiPanel::appendBubble(const QString& title, const QString& body, const QStr
                                       "</div>")
                            .arg(color, title.toHtmlEscaped(), escaped));
 
+    // 追加不会自己跟随到底，得手动滚到最新一条，否则新回复看着像没出来
     QScrollBar* bar = m_pHistory->verticalScrollBar();
     bar->setValue(bar->maximum());
 }
@@ -204,11 +206,12 @@ void AiPanel::refreshHeader()
                                       .arg(files)
                                       .arg(m_pService->KnowledgeChunkCount()));
     } else {
-        m_pTitleLabel->setText(QStringLiteral("会话 %1").arg(m_pService->CurrentSessionId().right(6)));
+        m_pTitleLabel->setText(QStringLiteral("会话 %1").arg(m_pService->CurrentSessionId().right(6))); // id 是时间戳，末 6 位足以区分，全串太长
         m_pTitleLabel->setToolTip(QStringLiteral("当前会话 id：%1").arg(m_pService->CurrentSessionId()));
     }
 }
 
+// 用事件过滤器而不用自定义输入框子类：只有回车这一处行为要改，不值得多一个类
 bool AiPanel::eventFilter(QObject* watched, QEvent* event)
 {
     if (watched == m_pInput && event->type() == QEvent::KeyPress) {
@@ -234,6 +237,7 @@ void AiPanel::onSendClicked()
         return;
     }
 
+    // 未配置就在本地拦下并提示去哪配，比发出去再等一个错误更省事
     if (!m_pService->IsReady()) {
         appendBubble(QStringLiteral("提示"), m_pService->ConfigHint(), kColorError);
         return;
@@ -258,6 +262,7 @@ void AiPanel::onSettingsClicked()
     }
 
     m_pService->ReloadConfig();
+    // 配置可能刚从无效变为有效，借这次重算一遍按钮可用态
     onBusyChanged(false);
     appendBubble(QStringLiteral("提示"), QStringLiteral("配置已保存。"), kColorMuted);
 }
@@ -270,6 +275,7 @@ void AiPanel::onNewSessionClicked()
     }
 
     m_pService->StartNewSession();
+    // 服务那边只重置会话数据，面板的 HTML 记录是另一份，得自己清掉重画
     m_pHistory->clear();
     appendWelcome();
     refreshHeader();
@@ -289,6 +295,7 @@ void AiPanel::onKnowledgeClicked()
 
 void AiPanel::onFinished(AiResult result)
 {
+    // 先列工具调用再给结论，和「先说做了什么、再说结果」一致
     if (!result.trace.isEmpty()) {
         appendTrace(result.trace);
     }

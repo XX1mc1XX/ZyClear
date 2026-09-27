@@ -149,6 +149,8 @@ private:
 
 int ExtensionHost::Attach(QMainWindow* window, PanelRegistry* registry)
 {
+    // 宿主按可选依赖对待：参数不全就当没有可挂的面板，返回 0。
+    // 调用方（包括测试）因此不必自己先判空。
     if (window == nullptr || registry == nullptr) {
         return 0;
     }
@@ -156,6 +158,7 @@ int ExtensionHost::Attach(QMainWindow* window, PanelRegistry* registry)
     QMenu* viewMenu = EnsureViewMenu(window);
 
     // 顶部工具栏：每个面板一个切换按钮，对应 VS Code 右上角那排布局图标
+    // 工具栏按 objectName 找回而不是记成员：Attach 才能不持状态，对任意窗口都可调
     QToolBar* panelBar = window->findChild<QToolBar*>(QStringLiteral("panelToolBar"));
     if (panelBar == nullptr) {
         panelBar = new QToolBar(QStringLiteral("面板"), window);
@@ -194,6 +197,8 @@ int ExtensionHost::Attach(QMainWindow* window, PanelRegistry* registry)
         QDockWidget* dock = new QDockWidget(panel->PanelTitle(), window);
         dock->setObjectName(QStringLiteral("dock_") + id);
 
+        // 一个面板造不出界面只跳过它一个；dock 这时还没有父窗口接管，
+        // 必须在这里手动 delete，否则每次挂载都漏一份。
         QWidget* content = panel->CreateWidget(dock);
         if (content == nullptr) {
             delete dock;

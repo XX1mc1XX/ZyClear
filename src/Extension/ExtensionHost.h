@@ -12,6 +12,8 @@ class PanelRegistry;
 // 浮动成独立窗口、右上角关闭、从菜单重新打开。
 class ExtensionHost {
 public:
+    // 同一窗口重复调用是安全的：工具栏、视图菜单、重排控制器都按 objectName 复用，
+    // 不会挂出第二套。造不出界面的面板被跳过，返回值里已经扣掉。
     // 会顺带建一个「视图」菜单，用于重新打开被关掉的面板。返回挂上去的面板数
     static int Attach(QMainWindow* window, PanelRegistry* registry);
 };

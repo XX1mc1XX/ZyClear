@@ -23,6 +23,7 @@ QString AiSession::subtitle() const
     return QStringLiteral("%1 轮 · %2").arg(turns.size()).arg(stamp);
 }
 
+// 放在可执行文件旁而非 AppData：便携版拷走就跟着走，卸载时删目录即清干净
 QString HistoryStore::StorageDir()
 {
     return QCoreApplication::applicationDirPath() + QStringLiteral("/ai_sessions");
@@ -31,7 +32,7 @@ QString HistoryStore::StorageDir()
 AiSession HistoryStore::CreateNew()
 {
     AiSession session;
-    session.id = QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd_HHmmss_zzz"));
+    session.id = QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd_HHmmss_zzz")); // 带毫秒，同一秒连开两次会话也不会撞 id
     session.createdAt = QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM-dd HH:mm:ss"));
     return session;
 }
@@ -74,6 +75,7 @@ bool HistoryStore::Save(const AiSession& session)
         return false;
     }
 
+    // 缩进格式便于直接打开文件排查问题，多出来的体积可忽略
     file.write(QJsonDocument(root).toJson(QJsonDocument::Indented));
     return true;
 }
@@ -125,10 +127,11 @@ QList<AiSession> HistoryStore::List()
 
     const QFileInfoList files = dir.entryInfoList(
         QStringList { QStringLiteral("*") + QString::fromLatin1(kFileSuffix) },
-        QDir::Files, QDir::Time);
+        QDir::Files, QDir::Time); // QDir::Time 是修改时间倒序，最近聊过的排在前面
 
     for (const QFileInfo& info : files) {
         AiSession session = Load(info.completeBaseName());
+        // 半截或损坏的文件读出来 id 为空，直接跳过，不让坏文件挡住整份列表
         if (!session.id.isEmpty()) {
             sessions.append(session);
         }

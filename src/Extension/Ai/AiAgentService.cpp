@@ -26,6 +26,7 @@ const char* kBaseSystemPrompt =
     "3) 改参数前先看清取值范围，改完以回读值为准；"
     "4) 最后用一句中文总结你做了什么、结果如何。回答简短，不要长篇解释。";
 
+// 追踪只取「助手发起过的工具调用」：正文属于回答，界面已单独展示，重复塞进追踪反而淹没重点
 QStringList BuildTrace(const std::vector<agent4cpp::ChatMessage>& transcript)
 {
     QStringList trace;
@@ -49,6 +50,7 @@ AiAgentService::AiAgentService(QObject* parent)
 {
     m_session = HistoryStore::CreateNew();
 
+    // 回调跑在 watcher 所属的主线程，后台线程只负责算出一个 AiResult 交回来
     connect(m_watcher, &QFutureWatcher<AiResult>::finished, this, [this]() {
         const AiResult result = m_watcher->result();
 
@@ -60,8 +62,10 @@ AiAgentService::AiAgentService(QObject* parent)
         m_session.turns.append(turn);
 
         if (m_session.title.isEmpty()) {
+            // 标题取首问开头一段，够在历史列表里认出来又不撑破一行
             m_session.title = m_pendingQuestion.left(24);
         }
+        // 每轮答完立即落盘：中途崩溃也最多丢当前这一轮，不会连带整段会话
         HistoryStore::Save(m_session);
 
         m_pendingQuestion.clear();
@@ -85,6 +89,7 @@ void AiAgentService::SetToolProviders(const QList<IToolProvider*>& providers)
 
 void AiAgentService::BuildAgent()
 {
+    // 工具表每轮重建：提供者集合或配置变化后不必做增量同步，整体注册一遍最新的即可
     m_registry = std::make_unique<agent4cpp::ToolRegistry>();
 
     for (IToolProvider* provider : m_providers) {
@@ -114,6 +119,7 @@ void AiAgentService::BuildAgent()
     auto client = std::make_shared<agent4cpp::OpenAICompatibleLLMClient>(llmConfig);
 
     QString systemPrompt = QString::fromUtf8(kBaseSystemPrompt);
+    // 把每个提供者的名字与描述拼成分节，模型据此判断哪类问题该动哪个对象
     for (IToolProvider* provider : m_providers) {
         if (provider == nullptr) {
             continue;
@@ -125,8 +131,8 @@ void AiAgentService::BuildAgent()
     agent4cpp::AgentConfig agentConfig;
     agentConfig.system_prompt = systemPrompt.toStdString();
     agentConfig.max_steps = 8; // 兜底，防止模型反复调工具不收敛
-    agentConfig.knowledge_store = m_knowledge.get();
-    agentConfig.knowledge_top_k = 3;
+    agentConfig.knowledge_store = m_knowledge.get(); // 为空即本轮不启用检索，没导入过文档时就是空
+    agentConfig.knowledge_top_k = 3; // 只带最相关的几段，多了挤占上下文又白花钱
 
     m_agent = std::make_shared<agent4cpp::Agent>(agentConfig, m_registry.get(), client);
 }
@@ -192,6 +198,7 @@ void AiAgentService::Ask(const QString& question)
     const std::shared_ptr<agent4cpp::Agent> agent = m_agent;
 
     m_watcher->setFuture(QtConcurrent::run([agent, trimmed]() -> AiResult {
+        // 这段跑在后台线程：不碰任何成员，只读快照并算出结果
         AiResult result;
 
         const agent4cpp::AgentResponse response = agent->Run(trimmed.toStdString());
@@ -254,6 +261,7 @@ bool AiAgentService::DeleteSession(const QString& id)
     return removed;
 }
 
+// 没导入过文档就不建库，免得给每一轮问答都挂上一份空检索
 void AiAgentService::EnsureKnowledgeStore()
 {
     if (m_knowledge == nullptr) {
@@ -291,6 +299,7 @@ int AiAgentService::ImportKnowledge(const QStringList& files)
         }
 
         m_knowledgeChunkCount += static_cast<int>(chunks.size());
+        // 片段是累加的：同名文件再导一次会重新切块入库，这里只保证文件名列表不重复
         if (!m_knowledgeFiles.contains(name)) {
             m_knowledgeFiles << name;
         }
@@ -319,6 +328,7 @@ void AiAgentService::ClearKnowledge()
     m_knowledgeFiles.clear();
     m_knowledgeChunkCount = 0;
 
+    // 重建后 agent 拿到的是空的 knowledge_store，检索随之失效
     BuildAgent();
     emit SigKnowledgeChanged();
 }

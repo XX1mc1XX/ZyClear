@@ -21,6 +21,7 @@ const char* kColorAssistant = "#188038";
 const char* kColorError = "#d93025";
 const char* kColorMuted = "#7a7a7a";
 
+// 会话正文来自模型输出和用户输入，可能含尖括号，逐条转义后再拼 HTML
 QString ToHtml(const QString& text)
 {
     QString escaped = text.toHtmlEscaped();
@@ -90,7 +91,7 @@ void SessionDialog::reload()
     m_pSummaryLabel->setText(QStringLiteral("共 %1 次会话").arg(sessions.size()));
 
     if (m_pList->count() > 0) {
-        m_pList->setCurrentRow(0);
+        m_pList->setCurrentRow(0); // 借 currentRowChanged 顺带把首条的详情加载出来
     } else {
         m_pDetail->setHtml(QStringLiteral(
             "<i style='color:%1'>还没有历史会话。问一句试试。</i>")
@@ -106,6 +107,7 @@ void SessionDialog::onCurrentRowChanged(int row)
     }
 
     const QString id = m_pList->item(row)->data(Qt::UserRole).toString();
+    // 正文现从磁盘取：列表项里只留了一个 id，没必要把所有会话都驻留在内存
     const AiSession session = HistoryStore::Load(id);
 
     if (session.turns.isEmpty()) {
@@ -159,6 +161,7 @@ void SessionDialog::onDeleteClicked()
         return;
     }
 
+    // 删的若是当前会话，service 会顺手开一段新会话并重置模型侧上下文
     m_pService->DeleteSession(id);
     reload();
 }
@@ -172,6 +175,7 @@ KnowledgeDialog::KnowledgeDialog(AiAgentService* service, QWidget* parent)
     setupUi();
     refresh();
 
+    // 导入和清空都经过 service，挂这一个信号能同时覆盖两条路径，也和主面板的显示保持一致
     connect(m_pService, &AiAgentService::SigKnowledgeChanged, this, &KnowledgeDialog::refresh);
 }
 

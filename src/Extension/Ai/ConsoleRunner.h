@@ -27,6 +27,7 @@ private:
 
     void PrintBanner(QTextStream& out) const;
     void PrintHelp(QTextStream& out) const;
+    // 工具调用逐条列出、最后给结论：控制台里没有面板的排版，靠这个把「动手过程」交代清楚
     void PrintResult(QTextStream& out, const AiResult& result) const;
 
     QList<IToolProvider*> m_providers;

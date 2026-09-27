@@ -10,6 +10,8 @@ class QListWidget;
 class QPushButton;
 class QTextBrowser;
 
+// 历史浏览：列表项只带会话 id，正文按选中项从磁盘现取，避免一次把全部会话读进内存。
+// 两个对话框都只借用 service，生命周期短于它，所以存裸指针
 class SessionDialog : public QDialog {
     Q_OBJECT
 

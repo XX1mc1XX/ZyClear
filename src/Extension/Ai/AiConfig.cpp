@@ -24,7 +24,7 @@ AiConfig AiConfig::Default()
     AiConfig config;
     config.baseUrl = QStringLiteral("https://api.deepseek.com/v1");
     config.model = QStringLiteral("deepseek-chat");
-    config.apiKey = QString();
+    config.apiKey = QString(); // 显式留空，让「还没配」能被 IsValid 认出来，而不是拿假 Key 去请求
     return config;
 }
 
@@ -33,6 +33,7 @@ AiConfig AiConfig::Load()
     AiConfig config = Default();
     QSettings settings = MakeSettings();
 
+    // 逐项带默认值兜底：老配置里缺的键不会读成空串或 0，温度、超时这类数值尤其经不起读成 0
     config.baseUrl = settings.value(kKeyBaseUrl, config.baseUrl).toString();
     config.model = settings.value(kKeyModel, config.model).toString();
     config.apiKey = settings.value(kKeyApiKey, config.apiKey).toString();
@@ -54,6 +55,7 @@ void AiConfig::Save() const
     settings.setValue(kKeyMaxTokens, maxTokens);
     settings.setValue(kKeyTimeoutMs, timeoutMs);
 
+    // sync 立即落盘：设置对话框关掉后即使进程异常退出，配置也不会丢
     settings.sync();
 }
 
@@ -64,6 +66,7 @@ bool AiConfig::IsValid() const
         && !apiKey.trimmed().isEmpty();
 }
 
+// 名字固定不变：agent4cpp 侧配置里只保存这个变量名，改名会让已存的配置对不上号
 QString AiConfig::ApiKeyEnvName()
 {
     return QStringLiteral("ZYCLEAR_AI_API_KEY");

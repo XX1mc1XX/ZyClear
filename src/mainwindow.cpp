@@ -59,10 +59,15 @@ MainWindow::MainWindow(QWidget* parent)
 {
     setupUi();
 
+    // 挂载发生在 setupUi() 之后：三个容器是那一步才建出来的。
+    // 控件本身在初始化列表里就 new 好了并且没有父对象，
+    // addWidget 会完成重定父，所以这里不存在无主窗口泄漏。
     m_pControlContainer->layout()->addWidget(m_pControlWidget);
     m_pParamContainer->layout()->addWidget(m_pParamWidget);
     m_pViewContainer->layout()->addWidget(m_pViewWidget);
     statusBar()->addWidget(m_pErrorInfoLabel);
+    // 关掉状态栏右下角的尺寸手柄：它会被布局顶到错误文本右边、把文本挤窄，
+    // 而窗口缩放走边框本来就够用。
     statusBar()->setSizeGripEnabled(false);
 
     // 窗口按屏幕「可用区域」开窗，而不是写死一个尺寸。
@@ -108,6 +113,8 @@ MainWindow::MainWindow(QWidget* parent)
     static CameraToolProvider cameraTools;
     const QList<IToolProvider*> providers { &cameraTools };
 #else
+    // 空表合法：注册处只会挂那些不依赖宿主能力的面板，
+    // 编译掉 AI 扩展的版本照样能起来，只是少一个面板。
     const QList<IToolProvider*> providers;
 #endif
 
@@ -125,6 +132,10 @@ MainWindow::~MainWindow()
 
 void MainWindow::setupUi()
 {
+    // 这里的尺寸、标题、以及下面 menuBar 的 geometry，都是 .ui 导出时留下的：
+    // setupUi 在构造函数体之前跑，随后会被构造函数里的 resize()、
+    // setWindowTitle() 覆盖，菜单栏几何也由 QMainWindow 自行接管。
+    // 保留只是为了与设计稿对得上，改这几行不会影响实际外观。
     resize(1000, 600);
     setWindowTitle(tr("MainWindow"));
 
@@ -192,6 +203,11 @@ void MainWindow::setupUi()
 
 void MainWindow::OnUpdateErrorInfo(QString strErrorInfo)
 {
+    // 三栏中任意部件的 SigUpdateErrorInfo 都汇到这一个槽。
+    // 约定：空串 = 清除，只清状态栏不弹窗；非空一律弹模态框。
+    // 这么激进是因为错误源几乎全是相机 SDK 的链路/参数失败，
+    // 静默重试没有意义，用户必须立刻看到。
+    // 代价：模态框会阻塞事件循环，采图热路径上不要往这里发错误。
     m_pErrorInfoLabel->setText(strErrorInfo);
     if (!strErrorInfo.isEmpty()) {
 

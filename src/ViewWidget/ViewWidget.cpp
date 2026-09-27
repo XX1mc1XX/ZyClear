@@ -22,6 +22,8 @@ ViewWidget::ViewWidget(QWidget* parent)
     setupUi();
     m_pViewBoxContainer->layout()->addWidget(m_pViewBox);
 
+    // 只订阅不主动查询：开流可能由控制栏、AI 侧栏或相机掉线等第三方触发，
+    // 面板靠这份广播对齐开关外观与画面清空，不假设自己知道是谁动的手。
     ListenerManger::Instance()->registerMessage(MESSAGE::CAMERA_CONNECT
             | MESSAGE::CAMERA_DISCONNECT
             | MESSAGE::CAMERA_ENUMRTION
@@ -74,7 +76,11 @@ void ViewWidget::setupUi()
 
 void ViewWidget::RespondMessage(int message)
 {
+    // message 是按位广播，判定必须写成 (message & X) == X：一次 notify 常
+    // 把枚举与断开合并投递，用等值比较会把位掩码当成单个枚举而全部漏掉。
     if ((message & MESSAGE::CAMERA_DISCONNECT) == MESSAGE::CAMERA_DISCONNECT) {
+        // 清空是必须的：断连或重新枚举后旧画面已不对应任何设备，留着会让
+        // 用户把上一台相机的残影当成当前设备的实时图像。
         m_pViewBox->Clear();
         setStarGrabbingState(false);
     }
@@ -94,6 +100,8 @@ void ViewWidget::on_Grabbing_Button_toggled(bool checked)
 {
     Q_UNUSED(checked);
     QString serial = CameraContext::Instance()->currentSerial();
+    // 按钮的最终外观由 notify→RespondMessage 回写，这里刻意不自己设状态，
+    // 于是没有当前相机时按钮根本不会被点亮成"正在拉流"。
     if (serial.isNull())
         return;
 
@@ -101,9 +109,13 @@ void ViewWidget::on_Grabbing_Button_toggled(bool checked)
     CameraContext::Instance()->isGrabbing(serial, state);
     if (state == false)
     {
+        // 先接信号再启动相机：startGrabbing 之后首帧可能立刻到达，晚接会丢帧；
+        // 断开则反过来先于停相机，保证停流之后不会再有帧投进视图。
         connect(m_pImageProcess, &AcquireImageProcess::sigUpdateImage, m_pViewBox, &GraphicsView::SetImage);
         CHECK_RETURN(CameraContext::Instance()->startGrabbing(serial));
 
+        // serial 必须在 start() 之前落定：run() 一进线程就拿它去取帧，
+        // 晚写会让线程先以空序列号连吃几次 NOCAMERA_ERROR。
         m_pImageProcess->setSerial(serial);
         m_pImageProcess->start();
 
@@ -122,6 +134,8 @@ void ViewWidget::on_Grabbing_Button_toggled(bool checked)
 
 void ViewWidget::setStarGrabbingState(bool state)
 {
+    // 只切图片资源、不碰尺寸：按钮图标的大小与随面板缩放的规则统一由 qss
+    // 定义，代码侧再定一份尺寸口径迟早会和主题样式打架。
     if (state == true) {
         m_pGrabbingButton->setStyleSheet("QPushButton{image:url(:/StopGrab.png);}");
     } else {

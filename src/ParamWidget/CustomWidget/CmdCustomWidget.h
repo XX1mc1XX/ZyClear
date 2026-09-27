@@ -18,6 +18,8 @@ protected slots:
     void onCmdButtonClicked();
 
 private:
+    // CmdParam 是空结构体，没有可读可写的值，本控件也就没有“设值”语义：
+    // 按钮按下即等于执行一次该命令
     QPushButton* m_pCmdButton;
 };
 

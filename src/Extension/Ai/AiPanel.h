@@ -19,6 +19,7 @@ public:
     explicit AiPanel(QWidget* parent = nullptr);
     ~AiPanel();
 
+    // 宿主把相机能力从这里递进来；面板只是透传，本身不认识任何相机概念
     void SetToolProviders(const QList<IToolProvider*>& providers);
 
 protected:
@@ -39,6 +40,7 @@ private slots:
 
     void onFinished(AiResult result);
 
+    // 未配置或还没注册工具时不会有 busy 信号，构造与注册工具后手动调一次来刷新按钮可用态
     void onBusyChanged(bool busy);
 
     void onSessionsChanged();

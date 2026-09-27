@@ -18,6 +18,8 @@ protected slots:
     void onValueChanged(int value);
 
 private:
+    // 范围与步长完全来自相机上报（IntParam 的 min/max/increment），界面不做任何写死，
+    // 这一点与 Double 相反——后者的参数结构里根本没有增量字段
     QSpinBox* m_SpinBox;
 };
 

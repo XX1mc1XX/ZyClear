@@ -89,7 +89,7 @@ int ConsoleRunner::Run(QCoreApplication* app)
     out.setEncoding(QStringConverter::Utf8);
     QTextStream in(stdin);
 
-    AiAgentService service;
+    AiAgentService service; // 栈上活到循环结束；Ask 是异步的，局部事件循环期间它必须还活着
     service.SetToolProviders(m_providers);
 
     PrintBanner(out);

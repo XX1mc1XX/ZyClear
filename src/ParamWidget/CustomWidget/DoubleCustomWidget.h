@@ -18,6 +18,8 @@ protected slots:
     void onValueChanged(double value);
 
 private:
+    // 用 QDoubleSpinBox 而非 QLineEdit + 校验器：相机的 DoubleParam 自带 min/max，
+    // 交给控件做硬约束比事后拦非法输入省事
     QDoubleSpinBox* m_SpinBox;
 };
 

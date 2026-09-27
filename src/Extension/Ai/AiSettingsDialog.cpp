@@ -117,6 +117,7 @@ void AiSettingsDialog::LoadFromConfig()
     m_pApiKeyEdit->setText(config.apiKey);
     m_pMaxTokensSpin->setValue(config.maxTokens);
 
+    // 按地址全等反查预设：用户手工改过地址就老实地落在「自定义」，不去猜最接近的那家
     for (int index = 0; index < kPresetCount - 1; ++index) {
         if (config.baseUrl == QString::fromUtf8(kPresets[index].baseUrl)) {
             m_pProviderCombo->setCurrentIndex(index);
@@ -134,6 +135,7 @@ void AiSettingsDialog::onProviderChanged(int index)
 
     const ProviderPreset& preset = kPresets[index];
 
+    // 最后一档「自定义」不动输入框，保留用户已填的内容；只有选中具体服务商才覆盖
     if (index < kPresetCount - 1) {
         m_pBaseUrlEdit->setText(QString::fromUtf8(preset.baseUrl));
         m_pModelEdit->setText(QString::fromUtf8(preset.model));
@@ -167,6 +169,7 @@ void AiSettingsDialog::onAccepted()
         return;
     }
 
+    // 先读回磁盘再逐项改：本对话框没暴露温度和超时，直接新建配置会把它们抹成默认值
     AiConfig config = AiConfig::Load();
     config.baseUrl = baseUrl;
     config.model = model;

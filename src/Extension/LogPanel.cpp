@@ -46,6 +46,7 @@ const char* LevelName(QtMsgType type)
     return "-----";
 }
 
+// 时间戳与级别前缀在这里补：Qt 的默认输出不带时间，日志已经打出去就再也补不回来了。
 void MessageHandler(QtMsgType type, const QMessageLogContext& context, const QString& message)
 {
     const QString line = QStringLiteral("[%1] [%2] %3")
@@ -138,6 +139,8 @@ void LogPanel::setupUi()
 
 void LogPanel::InstallMessageHandler()
 {
+    // 只装一次：钩子装上后，重复调用等于把 MessageHandler 自己再接一层，
+    // 每条日志会被记两遍。
     if (g_previousHandler == nullptr) {
         g_previousHandler = qInstallMessageHandler(MessageHandler);
     }
@@ -166,6 +169,8 @@ QString LogPanel::ReadTail(const QString& filePath) const
     }
 
     const qint64 size = file.size();
+    // 按字节切尾，可能正好切进一个多字节 UTF-8 字符中间，fromUtf8 会在开头留一个
+    // 替换字符 —— 换取的是不必把整个大文件读进内存。
     if (size > kMaxTailBytes) {
         file.seek(size - kMaxTailBytes);
     }
@@ -182,6 +187,8 @@ void LogPanel::OnSourceChanged(int index)
 
 void LogPanel::OnRefresh()
 {
+    // 只有应用日志是本进程内存里的环形缓冲；AI 决策日志与相机 SDK 日志
+    // 由别的模块/库直接写在磁盘上，拿不到它们的写入时机，只能轮询读文件尾部。
     const QString appDir = QCoreApplication::applicationDirPath();
     QString content;
     QString caption;
@@ -227,6 +234,7 @@ void LogPanel::OnRefresh()
     }
 
     QScrollBar* bar = m_pView->verticalScrollBar();
+    // 留几像素余量：贴底判定常因像素取整差一两格，用严格相等反而在真正贴底时不跟滚。
     const bool wasAtBottom = bar->value() >= bar->maximum() - 4;
 
     m_pView->setPlainText(content);

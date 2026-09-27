@@ -24,6 +24,7 @@ struct AiResult {
     QString error;
     QStringList trace;
 
+    // 判据只看 error：模型可能只调了工具没给文字，answer 为空不算这一轮失败
     bool ok() const { return error.isEmpty(); }
 };
 
@@ -74,6 +75,7 @@ public slots:
 
 signals:
 
+    // 成功和失败都会发：界面只挂这一个信号就能收到本轮收尾，不必再区分错误通道
     void SigFinished(AiResult result);
 
     void SigBusyChanged(bool busy);
@@ -98,8 +100,10 @@ private:
 
     AiSession m_session;
 
+    // 后台线程碰不到 m_session，问题先存在这里，等 finished 回到主线程再连同答复一起写入
     QString m_pendingQuestion;
 
+    // 父对象就是本服务，finished 会在创建它的（主）线程投递，回调里可以安全碰会话与界面
     QFutureWatcher<AiResult>* m_watcher;
 
     bool m_busy { false };

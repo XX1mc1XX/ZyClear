@@ -8,6 +8,8 @@ CmdCustomWidget::CmdCustomWidget(CameraParam param, const QModelIndex& index, QW
 
 void CmdCustomWidget::setParam(CameraParam& param)
 {
+    // clicked 只在用户交互时发出，编程式改文本不会回发信号，这里本可不断开；
+    // 与其它控件保持同一对 disconnect/connect 包围，避免不一致的写法被照抄到有信号的控件上
     disconnect(m_pCmdButton, &QPushButton::clicked,
         this, &CmdCustomWidget::onCmdButtonClicked);
 
@@ -30,6 +32,8 @@ void CmdCustomWidget::addEditLayout(QHBoxLayout* layout)
 
 void CmdCustomWidget::onCmdButtonClicked()
 {
+    // 不先改 m_param：命令参数的值本来就是空的，相机端凭 name 执行，直接上报即可。
+    // 也因此本控件没有“编辑期”，不会走 delegate 的 setModelData 回写路径
     emit sigValueChanged(m_param, m_index);
 }
 

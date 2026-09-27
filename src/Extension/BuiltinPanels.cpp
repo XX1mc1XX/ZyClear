@@ -35,6 +35,8 @@ public:
     QWidget* CreateWidget(QWidget* parent) override
     {
         auto* panel = new AiPanel(parent);
+        // 每次挂载都新造一个 AiPanel；providers 这里只是浅拷一串裸指针，
+        // provider 对象本身仍由调用方养着，面板不负责它的生死。
         panel->SetToolProviders(m_providers);
         return panel;
     }
@@ -50,6 +52,8 @@ private:
 
 #endif // ZYCLEAR_HAS_AI
 
+// 这些适配器只在本文件的注册点用一次，所以不放进头文件：
+// 外部没有理由认识它们，面板对外的身份就是注册表里的那个 id。
 class LogPanelExtension : public IPanel {
 public:
     QString PanelId() const override
@@ -88,10 +92,14 @@ void RegisterBuiltinPanels(PanelRegistry* registry, const QList<IToolProvider*>&
     }
 
 #ifdef ZYCLEAR_HAS_AI
+    // 没链上 agent4cpp 时整个 AI 面板不登记，程序退化成纯相机客户端，
+    // 其余面板照常。闭包按值捕获 providers，因此不依赖调用方的栈。
     registry->Register(QStringLiteral("extension.panel.ai"),
         [providers]() -> IPanel* { return new AiPanelExtension(providers); });
 #endif
 
+    // 内置面板统一用 extension.panel. 前缀，与外部插件的 id 处在同一命名空间，
+    // 靠「先登记」占位，保证 external DLL 顶不掉它们。
     registry->Register(QStringLiteral("extension.panel.log"),
         []() -> IPanel* { return new LogPanelExtension(); });
 }

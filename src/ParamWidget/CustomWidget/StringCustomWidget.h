@@ -15,6 +15,7 @@ protected:
     virtual void addEditLayout(QHBoxLayout* layout) override;
 
 protected slots:
+    // 槽没有参数：editingFinished 不携带新文本，只能回控件取 text()
     void onValueChanged();
 
 private:

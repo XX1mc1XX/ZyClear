@@ -27,15 +27,25 @@
 #include <functional>
 #include <string>
 
+// 整条 AI 链路里只有这一层认识「相机」：它把 CameraContext 门面的能力翻译成模型
+// 看得懂的工具，门面背后是海康 SDK 还是虚拟相机，这里不关心也不该关心 —— 正因为
+// 如此，Extension/ 那套通用 AI 层可以整体搬到别的客户端，只换掉这个文件即可。
+//
+// 要交给模型的「说明书」（工具名、description、参数 Schema）全部由本文件提供，
+// 模型只能靠这些文字决定该不该调、传什么值，所以这些文案本身就是程序逻辑的一部分，
+// 改措辞和改代码一样要防回归。
 namespace {
 
 std::string ToJson(const QJsonObject& object)
 {
+    // 用 Compact 而不是 Indented：payload 每轮都要塞进模型上下文，缩进空白纯属浪费 token。
     return QJsonDocument(object).toJson(QJsonDocument::Compact).toStdString();
 }
 
 agent4cpp::ToolResult MakeOk(const QString& content, const QJsonObject& payload)
 {
+    // content 是给人看的一句话；payload 是给模型继续推理的结构化数据，
+    // 两条通道别互相替代（工具体系对这两者的约定见 agent4cpp/tool.h）。
     agent4cpp::ToolResult result;
     result.status = agent4cpp::Status::Ok();
     result.content = content.toStdString();
@@ -44,6 +54,8 @@ agent4cpp::ToolResult MakeOk(const QString& content, const QJsonObject& payload)
 }
 
 // 失败也回灌给模型（不中断循环），文案要写清错误原因
+// 用 FailedPrecondition 而不是 Internal：语义是「参数/条件不满足，改一下可重试」，
+// 模型据此会自己纠错，而不是把它当成设备坏了。
 agent4cpp::ToolResult MakeError(const QString& content, const QJsonObject& payload = {})
 {
     agent4cpp::ToolResult result;
@@ -54,6 +66,12 @@ agent4cpp::ToolResult MakeError(const QString& content, const QJsonObject& paylo
 }
 
 // CameraInterface 非线程安全，相机操作统一切回主线程串行执行，免加锁
+//
+// 工具回调跑在 agent 的后台线程（IToolProvider::RegisterTools 的约定），
+// 所以必须切回主线程；用 BlockingQueuedConnection 同步等结果，是因为调用方
+// 要马上拿 ToolResult 返回，异步回调没法往回送。
+// 已经在主线程、或根本没有 QCoreApplication 时直接执行 —— 从主线程投递给自己
+// 的阻塞队列调用会立刻死锁。
 agent4cpp::ToolResult RunOnUiThread(const std::function<agent4cpp::ToolResult()>& body)
 {
     QCoreApplication* app = QCoreApplication::instance();
@@ -67,6 +85,10 @@ agent4cpp::ToolResult RunOnUiThread(const std::function<agent4cpp::ToolResult()>
     return result;
 }
 
+// 把「收 QJsonObject、返 ToolResult」的本地函数适配成 agent4cpp 的 ToolInvoker。
+// 模型给的是一串 JSON 文本，统一在这里解析：残缺 JSON 不抛异常，而是当成一次
+// 可解释的失败回给模型让它重发。解析出的对象按值捕获进 lambda —— 真正执行发生在
+// 切回主线程之后，那时原始 QByteArray 早就析构了，靠引用会悬空。
 agent4cpp::ToolInvoker UiTool(std::function<agent4cpp::ToolResult(const QJsonObject&)> body)
 {
     return [body](const std::string& arguments_json) -> agent4cpp::ToolResult {
@@ -83,6 +105,8 @@ agent4cpp::ToolInvoker UiTool(std::function<agent4cpp::ToolResult(const QJsonObj
     };
 }
 
+// serial 是可选项：省略就落到界面上当前选中的相机。两者都空时给的是面向用户
+// 的引导语 —— 这句文案会被模型转述给用户，所以写成人话而非错误码。
 QString ResolveSerial(const QJsonObject& arguments, QString* error)
 {
     QString serial = arguments.value(QStringLiteral("serial")).toString().trimmed();
@@ -96,6 +120,7 @@ QString ResolveSerial(const QJsonObject& arguments, QString* error)
     return serial;
 }
 
+// 描述里带上十六进制错误码：日志和界面上出现的就是这个码，方便对着 SDK 手册查。
 QString DescribeError(uint32_t code)
 {
     return QStringLiteral("%1（错误码 %2）")
@@ -103,6 +128,7 @@ QString DescribeError(uint32_t code)
         .arg(code, 0, 16);
 }
 
+// 把模型给的值原样回显进错误文案：它看到自己传了什么，才知道该怎么改。
 QString DescribeJsonValue(const QJsonValue& value)
 {
     if (value.isString()) {
@@ -120,6 +146,9 @@ QString DescribeJsonValue(const QJsonValue& value)
     return QStringLiteral("（复合值）");
 }
 
+// 把一个相机参数翻译成给模型看的 Schema：readable/writeable 告诉它这项能不能写，
+// min/max 与 options 给出全部合法取值，模型据此自己纠错，不必靠反复试错。
+// tips 有内容才带上，空字段不占 token。
 // 只读项默认不返回，避免参数清单把上下文撑满
 QJsonObject ParamToJson(const CameraParam& param, bool includeValue)
 {
@@ -197,6 +226,7 @@ QJsonObject ParamToJson(const CameraParam& param, bool includeValue)
     return object;
 }
 
+// 包一层 getParamList：把门面的 uint32 错误码统一翻成人话，调用点只需看一个字符串。
 QString FetchParams(const QString& serial, QVector<CameraParam>* params)
 {
     const uint32_t code = CameraContext::Instance()->getParamList(serial, *params);
@@ -206,6 +236,8 @@ QString FetchParams(const QString& serial, QVector<CameraParam>* params)
     return QString();
 }
 
+// 先精确匹配、再退到大小写不敏感：模型偶尔把 ExposureTime 写成 exposuretime。
+// 分两轮是为了在「仅大小写不同」的参数同时存在时，精确那一轮先命中，不被误配。
 bool FindParam(const QVector<CameraParam>& params, const QString& name, CameraParam* out)
 {
     for (const CameraParam& param : params) {
@@ -224,6 +256,10 @@ bool FindParam(const QVector<CameraParam>& params, const QString& name, CameraPa
 }
 
 // 值来自模型推理，可能超范围或类型不对，在这里拦住并说明原因
+// 类型收得宽（数字、数字字符串都收）：模型受 JSON 训练影响常把 8000 写成 "8000"，
+// 严格拒绝只是平白多耗一轮。
+// 但超范围直接拒绝、绝不静默钳位：min/max 是设备的硬约束，钳位会让模型以为
+// 写进去的就是它要的值，后续推理全建立在错前提上。
 QString ApplyValue(CameraParam& param, const QJsonValue& value)
 {
     switch (param.type()) {
@@ -343,6 +379,8 @@ QString ApplyValue(CameraParam& param, const QJsonValue& value)
         }
 
         target.value = target.availableValue.at(index);
+        // 枚举同时存字符串名与对应整数值：下发给 SDK 要用整数，回显给模型要用字符串，
+        // 两个都得跟上。
         if (index < target.availableInt.size()) {
             target.valueInt = target.availableInt.at(index);
         }
@@ -359,6 +397,8 @@ QString ApplyValue(CameraParam& param, const QJsonValue& value)
     return QStringLiteral("参数 %1 的类型未知，无法写入").arg(param.name());
 }
 
+// payload 里的 hint / note 是把「下一步能做什么、这次动作有什么副作用」直接告诉模型，
+// 工具之间只能靠这类文案互相指路。
 agent4cpp::ToolResult ToolListCameras(const QJsonObject& arguments)
 {
     const bool refresh = arguments.value(QStringLiteral("refresh")).toBool(false);
@@ -406,6 +446,7 @@ agent4cpp::ToolResult ToolListCameras(const QJsonObject& arguments)
     return MakeOk(QStringLiteral("扫描到 %1 台设备。注意：扫描断开了原来的连接。").arg(infos.size()), payload);
 }
 
+// 无参数工具：模型不确定「该操作哪台相机」时的入口，答案永远取自界面当前选中项。
 agent4cpp::ToolResult ToolCurrentCamera(const QJsonObject& arguments)
 {
     Q_UNUSED(arguments)
@@ -437,6 +478,8 @@ agent4cpp::ToolResult ToolCurrentCamera(const QJsonObject& arguments)
         payload);
 }
 
+// 先查已连接状态再连：对已连接的相机再连会报错，而模型很容易重复调同一个工具，
+// 做成幂等后重复调用不算失败。
 agent4cpp::ToolResult ToolConnectCamera(const QJsonObject& arguments)
 {
     QString error;
@@ -466,6 +509,7 @@ agent4cpp::ToolResult ToolConnectCamera(const QJsonObject& arguments)
     return MakeOk(QStringLiteral("相机 %1 已连接。").arg(serial), payload);
 }
 
+// connect 的收尾动作；serial 同样可省，落回当前选中的相机。
 agent4cpp::ToolResult ToolDisconnectCamera(const QJsonObject& arguments)
 {
     QString error;
@@ -486,6 +530,8 @@ agent4cpp::ToolResult ToolDisconnectCamera(const QJsonObject& arguments)
     return MakeOk(QStringLiteral("相机 %1 已断开。").arg(serial), payload);
 }
 
+// 默认只列可写参数：只读项数量多、模型也改不了，全列出来只会挤占上下文。
+// total / writeable / returned 三个计数让模型自己判断结果有没有被过滤或截断。
 agent4cpp::ToolResult ToolListParams(const QJsonObject& arguments)
 {
     QString error;
@@ -542,6 +588,7 @@ agent4cpp::ToolResult ToolListParams(const QJsonObject& arguments)
         payload);
 }
 
+// 找不到参数时把模型引向 list_params，而不是只回一句失败 —— 这样模型才有自己纠正的余地。
 agent4cpp::ToolResult ToolGetParam(const QJsonObject& arguments)
 {
     QString error;
@@ -572,6 +619,8 @@ agent4cpp::ToolResult ToolGetParam(const QJsonObject& arguments)
     return MakeOk(QStringLiteral("参数 %1 当前值为 %2。").arg(name, target.displayText()), payload);
 }
 
+// 写值前重新 getParamList 拿完整 CameraParam：writeParam 要的是带类型与范围的整个
+// 参数对象，不是孤零零一个值。先在本地用 ApplyValue 校验再下发，能挡掉大部分坏输入。
 agent4cpp::ToolResult ToolSetParam(const QJsonObject& arguments)
 {
     QString error;
@@ -624,6 +673,8 @@ agent4cpp::ToolResult ToolSetParam(const QJsonObject& arguments)
     payload.insert(QStringLiteral("name"), name);
 
     if (readCode == ZYCLEAR_OK) {
+        // value 是设备实际生效值，requested 是模型原本请求的值；两个并列给出来，
+        // 模型才看得出设备是怎么取整或截断的。
         payload.insert(QStringLiteral("value"), readback.displayText());
         payload.insert(QStringLiteral("requested"),
             QString::fromUtf8(QJsonDocument(QJsonArray { arguments.value(QStringLiteral("value")) })
@@ -641,6 +692,8 @@ agent4cpp::ToolResult ToolSetParam(const QJsonObject& arguments)
         payload);
 }
 
+// 拉流是取帧与画面分析的前提，单独暴露成一个工具，模型才能显式表达
+// 「先开流、再看画面」这个顺序。
 agent4cpp::ToolResult ToolStartGrab(const QJsonObject& arguments)
 {
     QString error;
@@ -660,6 +713,7 @@ agent4cpp::ToolResult ToolStartGrab(const QJsonObject& arguments)
     return MakeOk(QStringLiteral("相机 %1 已开始拉流。").arg(serial), payload);
 }
 
+// 停止拉流单独成工具：收工得由模型显式表达，不能随着一轮对话结束就隐式把流停了。
 agent4cpp::ToolResult ToolStopGrab(const QJsonObject& arguments)
 {
     QString error;
@@ -679,6 +733,9 @@ agent4cpp::ToolResult ToolStopGrab(const QJsonObject& arguments)
     return MakeOk(QStringLiteral("相机 %1 已停止拉流。").arg(serial), payload);
 }
 
+// 不回图像本身、只回量化指标：文本数字省 token 且结果确定，模型据此判断画面质量，
+// 再决定去改哪个参数。
+// payload 里的 _scale 字段顺便把「数值多大对应什么观感」讲给模型，省得它自己猜。
 agent4cpp::ToolResult ToolFrameStats(const QJsonObject& arguments)
 {
     QString error;
@@ -698,6 +755,7 @@ agent4cpp::ToolResult ToolFrameStats(const QJsonObject& arguments)
         return MakeError(QStringLiteral("取到的图像为空。"));
     }
 
+    // 亮度/对比度/清晰度都定义在灰度上，先转灰度再算，省掉逐通道处理。
     const QImage gray = image.convertToFormat(QImage::Format_Grayscale8);
 
     // QImage 每行有对齐填充，步长必须用 bytesPerLine，不能按 width 算
@@ -725,8 +783,12 @@ agent4cpp::ToolResult ToolFrameStats(const QJsonObject& arguments)
     cv::Scalar lapMean;
     cv::Scalar lapStddev;
     cv::meanStdDev(laplacian, lapMean, lapStddev);
+    // 拉普拉斯响应的方差是经典的对焦评价函数，平方即方差；画面糊时高频细节变少，
+    // 整体响应随之变小。
     const double sharpness = lapStddev[0] * lapStddev[0];
 
+    // 判定阈值（亮度 0.25 / 0.75、对比度 12、清晰度 30 等）是现场经验值，统一写死在这里；
+    // 只把结论标签交给模型，不让它自己套阈值，避免同一条链路各说各话。
     QString assessment;
     if (brightness < 0.25 || underRatio > 0.35) {
         assessment = QStringLiteral("underexposed");
@@ -775,6 +837,8 @@ QString CameraToolProvider::ProviderName() const
     return QStringLiteral("工业相机");
 }
 
+// 这段直接拼进系统提示词，本身就是模型的路由规则：讲清「用户这么说 → 该调这里的工具」。
+// 少了这类触发词，模型容易拿常识硬答，而不会去调工具。
 QString CameraToolProvider::ProviderDescription() const
 {
     return QStringLiteral(
@@ -784,6 +848,8 @@ QString CameraToolProvider::ProviderDescription() const
         "或者问某个参数现在是多少、能设成多少，都该用这里的工具。");
 }
 
+// 这些句子显示在 AI 面板的欢迎语里，点一下就当作提问原样发出去，
+// 所以要用用户的口吻写，而不是写成给模型的指令。
 QStringList CameraToolProvider::ExamplePrompts() const
 {
     return {
@@ -794,6 +860,12 @@ QStringList CameraToolProvider::ExamplePrompts() const
     };
 }
 
+// 十个工具的说明书：description 决定模型在什么场景选它，parameters 是随请求一起发出去的
+// JSON Schema，UiTool(...) 则是真正落到门面上的本地实现。
+// 工具名统一 snake_case：模型对这套命名最熟。注册顺序只影响这份源码的可读性 ——
+// registry 内部是有序 map，跟注册先后无关。
+// 参数 required 默认是 true，凡 serial、refresh、include_readonly 这类可省略的项都显式
+// 传 false，模型才不会因为漏填而被参数校验挡下。
 void CameraToolProvider::RegisterTools(agent4cpp::ToolRegistry& registry)
 {
     registry.Register(agent4cpp::ToolDefinition {

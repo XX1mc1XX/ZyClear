@@ -7,6 +7,8 @@
 
 PanelRegistry* PanelRegistry::Instance()
 {
+    // 函数内 static 的初始化由编译器加锁保证只跑一次，无需自己上锁；
+    // 且首次真正用到登记表时才构造，避开跨编译单元的全局构造顺序问题。
     static PanelRegistry instance;
     return &instance;
 }
@@ -45,6 +47,9 @@ int PanelRegistry::LoadFromLibrary(const QString& libraryPath)
         return 0;
     }
 
+    // resolve 只认符号名、不认类型，返回的是裸地址，强转成函数指针的类型安全
+    // 完全靠双方约定：导出端必须真的是这个签名。签名不符编译期查不出来，
+    // 只会在真正调用时炸。
     using CountFunction = int (*)();
     using AtFunction = IPanel* (*)(int);
 
@@ -57,6 +62,8 @@ int PanelRegistry::LoadFromLibrary(const QString& libraryPath)
         return 0;
     }
 
+    // 库能解析出两个函数才留下。下面登记的是「转发到 atFunction」的闭包，
+    // 真正 new 面板推迟到以后任意一次 Create，所以库必须活到进程结束、不解载。
     m_libraries.append(library);
 
     int loaded = 0;

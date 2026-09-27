@@ -4,6 +4,7 @@ IntCustomWidget::IntCustomWidget(CameraParam param, const QModelIndex& index, QW
     : OneCustomWidget(param, index, parent)
     , m_SpinBox(new QSpinBox(this))
 {
+    // 数值框撑满整格；其它几类控件没设，属于各自的差异，不是统一约定
     m_SpinBox->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 }
 
@@ -14,6 +15,8 @@ void IntCustomWidget::setParam(CameraParam& param)
 
     OneCustomWidget::setParam(param);
     IntParam varParam = m_param.GetValue().value<IntParam>();
+    // 先设范围再设值，否则超界的值会被旧区间夹一次；increment 为 0 时 QSpinBox 会
+    // 回退到默认步长
     m_SpinBox->setMinimum(varParam.min);
     m_SpinBox->setMaximum(varParam.max);
     m_SpinBox->setSingleStep(varParam.increment);

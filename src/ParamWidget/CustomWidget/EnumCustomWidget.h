@@ -18,6 +18,8 @@ protected slots:
     void onValueChanged(int value);
 
 private:
+    // 下拉框只展示 EnumParam.availableValue 里的字符串；相机侧的整数编码
+    // （valueInt/availableInt）对界面不可见，回写时才会用到
     QComboBox* m_pCombox;
 };
 

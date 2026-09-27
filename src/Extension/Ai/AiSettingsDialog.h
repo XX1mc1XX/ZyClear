@@ -3,6 +3,7 @@
 
 #ifdef ZYCLEAR_HAS_AI
 
+// 没编入 agent4cpp 时整个对话框从编译中消失，缺这套依赖的构建照样能过
 #include <QDialog>
 
 class QComboBox;

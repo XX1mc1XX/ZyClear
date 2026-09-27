@@ -63,6 +63,22 @@ Ubuntu 一行走的是**无海康 SDK** 的降级路径，与 CI 中的配置一
 
 ### 命令
 
+推荐用预设，构建参数已固化，不必每次手敲：
+
+```bash
+cmake --preset windows                # 配置（VS 2026；未装则改用 windows-vs2022）
+cmake --build --preset windows-release
+ctest --preset windows-debug          # 运行单元测试
+```
+
+| 预设 | 用途 |
+|---|---|
+| `windows` / `windows-vs2022` | 日常开发构建，产出 Debug / Release 双配置工程 |
+| `ninja` | 导出 `compile_commands.json`，供 clangd 与 clang-tidy 使用 |
+| `ci-linux` | 与 CI 流水线一致，覆盖「缺海康 SDK 时降级构建」这条路径 |
+
+也可以直接手写参数（预设未覆盖的场合）：
+
 ```bash
 cmake -S . -B build -G "Visual Studio 17 2022" -A x64 \
       -DCMAKE_PREFIX_PATH="C:/Qt/6.10.1/msvc2022_64" \
@@ -96,14 +112,38 @@ cmake --build build --config Release
 ctest --test-dir build -C Debug --output-on-failure
 ```
 
-测试只覆盖不含硬件依赖的纯逻辑组件，因此**不需要相机、不需要海康 SDK**。
-三个测试目标共 30 个用例：
+测试只覆盖不含硬件依赖的组件，因此**不需要相机、不需要海康 SDK**——
+连门面与工厂也一样照测：测试目标里不注册厂商适配器，走的是虚拟相机。
+八个测试目标共 107 个用例：
 
 | 测试 | 用例数 | 覆盖内容 |
 |---|---|---|
-| `test_cameraimagequeue` | 6 | 取帧超时、保新弃旧、缓冲复用与归还、稳态零分配 |
 | `test_cameraparam` | 12 | 六类参数的显示契约、访问权限三态、原型复制、QVariant 装箱 |
 | `test_parseuijson` | 12 | Schema 解析、字段校验与错误定位、类型映射、信号契约 |
+| `test_cameraimagequeue` | 6 | 取帧超时、保新弃旧、缓冲复用与归还、稳态零分配 |
+| `test_listener` | 10 | 事件位构造、按位投递、组合值被静默丢弃、重复注册的后果 |
+| `test_camerafactory` | 11 | 品牌注册与创建、未知厂商回空、枚举结果追加与可重复 |
+| `test_cameracontext` | 17 | 序列号寻址、状态查询、错误码口径、参数 Schema 端到端、重枚举重建 |
+| `test_cameraparammodel` | 24 | 分组组织、两列布局、只读权限在模型层拦截、整包写回与信号 |
+| `test_imageconver` | 15 | 像素格式映射、行跨距、通道交换方向、缓冲借用语义 |
+
+### 代码规范与静态分析
+
+| 文件 | 职责 |
+|---|---|
+| `.clang-format` | 代码级格式：括号位置、指针贴近、换行策略 |
+| `.editorconfig` | 文件级格式：编码、换行符、缩进宽度 |
+| `.clang-tidy` | 静态分析：只启用能给出确定结论的检查 |
+
+本地跑静态分析（先经 `ninja` 预设生成编译数据库）：
+
+```bash
+cmake --preset ninja
+clang-tidy -p build-ninja src/CameraInterface/CameraContext.cpp
+```
+
+CI 中另有一份同样的分析在跑，结论以报告形式产出、不阻塞合并——
+静态分析要成为习惯，前提是它的噪声低到有人愿意看。
 
 ---
 
