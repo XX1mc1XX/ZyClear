@@ -1,0 +1,46 @@
+# 仓库内统一以 LF 存储，检出时由 git 按平台转换
+# （配合 core.autocrlf=true：Windows 工作区得到 CRLF，Linux 得到 LF）
+
+* text=auto
+
+# ── 文本文件 ────────────────────────────────────────────────
+# 显式声明而非依赖自动探测：源码含大量中文注释，自动探测有误判为二进制的先例，
+# 一旦被当成二进制，换行规范化与行级 diff 都会失效
+*.cpp           text
+*.h             text
+*.hpp           text
+*.cc            text
+*.txt           text
+*.md            text
+*.json          text
+*.yml           text
+*.yaml          text
+*.cmake         text
+*.qrc           text
+*.qss           text
+*.rc            text
+*.clangd        text
+*.clang-format  text
+*.clang-tidy    text
+.editorconfig   text
+.gitattributes  text
+.gitignore      text
+CMakeLists.txt  text
+
+# ── 二进制资源 ──────────────────────────────────────────────
+# 不做换行转换、不生成行级 diff，只记录内容是否变化
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.lib   binary
+*.dll   binary
+*.exe   binary
+
+# ── GitHub 语言统计 ─────────────────────────────────────────
+# 样式表与图标资源不算「项目用什么语言写的」，
+# 排除后语言构成才反映真实工作量（C++ / CMake）
+*.qss          linguist-detectable=false
+src/Icon/**    linguist-detectable=false
+src/Resource/** linguist-detectable=false

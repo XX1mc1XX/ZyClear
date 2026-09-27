@@ -1,0 +1,55 @@
+# 静态分析规则集。
+#
+# 本地跑：clang-tidy -p build-ninja <源文件>      （需先有 compile_commands.json）
+# CI 里用同一份配置，保证本地与流水线结论一致——CI 只负责跑，不额外塞规则。
+#
+# 选型原则：只开「能给出确定结论」的检查。
+#   · 风格类检查一律不在这里做，那属于 .clang-format 的职责，交给它更可预测；
+#   · 不用 bugprone-* / performance-* 这类通配，通配会把噪声也一起打开，
+#     报警多到没人看时，静态分析就退化成了一条永远被忽略的红线。
+#
+# 注意：下面 Checks 是 YAML 折叠块，块内的 # 不会被当成注释而是内容，
+#       因此所有说明只能写在块外，块内只允许出现检查名。
+Checks: >
+  bugprone-use-after-move,
+  bugprone-dangling-handle,
+  bugprone-sizeof-expression,
+  bugprone-sizeof-container,
+  bugprone-suspicious-memset-usage,
+  bugprone-macro-parentheses,
+  bugprone-string-constructor,
+  bugprone-signed-char-misuse,
+  bugprone-unused-raii,
+  bugprone-copy-constructor-init,
+  bugprone-undelegated-constructor,
+
+  performance-for-range-copy,
+  performance-unnecessary-copy-initialization,
+
+  concurrency-mt-unsafe,
+
+  modernize-use-override,
+  modernize-use-nullptr,
+  modernize-use-equals-default,
+  modernize-use-equals-delete,
+  modernize-use-bool-literals,
+  modernize-redundant-void-arg,
+  modernize-make-unique,
+
+  readability-misleading-indentation,
+  readability-redundant-smartptr-get,
+  readability-static-accessed-through-instance,
+  readability-inconsistent-declaration-parameter-name,
+  readability-container-size-empty,
+
+  portability-template-virtual-member-function
+
+# 不把警告当错误：CI 里以「产出报告」为目标，避免一次规则升级就卡住所有人。
+# 需要强制时在命令行显式加 --warnings-as-errors。
+WarningsAsErrors: ''
+
+# 只对自己写的代码出报告，不分析第三方 SDK 头文件展开出的问题
+HeaderFilterRegex: '(src|examples)/.*\.h$'
+
+# 格式化建议直接采用项目 .clang-format，避免 clang-tidy 与 clang-format 各持一套风格
+FormatStyle: file

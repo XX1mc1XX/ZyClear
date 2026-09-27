@@ -1,0 +1,109 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 25,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "windows",
+      "displayName": "Windows / MSVC（Visual Studio 2026）",
+      "description": "日常开发构建。产出 Debug / Release 双配置工程，供 IDE 与命令行共用。Qt 路径按本机安装位置改。",
+      "generator": "Visual Studio 18 2026",
+      "architecture": "x64",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "CMAKE_PREFIX_PATH": "C:/Qt/6.10.1/msvc2022_64",
+        "BUILD_TESTING": "ON"
+      }
+    },
+    {
+      "name": "windows-vs2022",
+      "displayName": "Windows / MSVC（Visual Studio 2022）",
+      "description": "未装 VS 2026 时用这套。其余与 windows 预设完全一致。",
+      "inherits": "windows",
+      "generator": "Visual Studio 17 2022",
+      "binaryDir": "${sourceDir}/build-vs2022"
+    },
+    {
+      "name": "ninja",
+      "displayName": "Windows / Ninja（供 clangd 与 clang-tidy 使用）",
+      "description": "导出 compile_commands.json。需在已初始化 MSVC 环境的终端里配置，例如从「Developer PowerShell for VS」启动。",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build-ninja",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "CMAKE_PREFIX_PATH": "C:/Qt/6.10.1/msvc2022_64",
+        "BUILD_TESTING": "ON"
+      }
+    },
+    {
+      "name": "ci-linux",
+      "displayName": "Linux / GCC（与 CI 流水线一致）",
+      "description": "刻意把海康 SDK 指向不存在的路径，顺带覆盖「缺厂商 SDK 时降级构建」这条分支。",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build-ci",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "HikSDK_ROOT": "/nonexistent",
+        "BUILD_TESTING": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "windows-debug",
+      "displayName": "构建 Debug",
+      "configurePreset": "windows",
+      "configuration": "Debug"
+    },
+    {
+      "name": "windows-release",
+      "displayName": "构建 Release",
+      "configurePreset": "windows",
+      "configuration": "Release"
+    },
+    {
+      "name": "ninja",
+      "configurePreset": "ninja"
+    },
+    {
+      "name": "ci-linux",
+      "configurePreset": "ci-linux"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "windows-debug",
+      "configurePreset": "windows",
+      "configuration": "Debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "windows-release",
+      "configurePreset": "windows",
+      "configuration": "Release",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "ninja",
+      "configurePreset": "ninja",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "ci-linux",
+      "configurePreset": "ci-linux",
+      "output": {
+        "outputOnFailure": true
+      }
+    }
+  ]
+}

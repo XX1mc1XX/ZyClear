@@ -1,0 +1,43 @@
+# 编辑器无关的格式约定。
+#
+# 与 .clang-format 的分工：本文件管「文件级」格式——编码、换行符、行尾空白、
+# 缩进宽度；.clang-format 管「代码级」格式——括号位置、指针贴近、换行策略。
+# 两者不重叠，编辑器各取所需。
+
+root = true
+
+[*]
+charset = utf-8
+# 仓库内统一 LF；Windows 工作区的 CRLF 由 git 的 core.autocrlf 在检出时转换
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+# 源码缩进 4 空格，与 .clang-format 的 IndentWidth: 4 保持一致
+[*.{cpp,h,hpp,cc,cxx}]
+indent_style = space
+indent_size = 4
+
+[CMakeLists.txt]
+indent_style = space
+indent_size = 4
+
+[*.cmake]
+indent_style = space
+indent_size = 4
+
+[*.{json,yml,yaml,qrc}]
+indent_style = space
+indent_size = 2
+
+# 中文注释密度较高，别让编辑器自动折行破坏注释分段
+[*.{cpp,h,hpp}]
+max_line_length = off
+
+# Markdown 里行尾两个空格是「硬换行」语法，裁掉会改变渲染结果
+[*.md]
+trim_trailing_whitespace = false
+
+# 批处理脚本必须 CRLF，否则部分命令解析出错
+[*.{bat,cmd}]
+end_of_line = crlf
