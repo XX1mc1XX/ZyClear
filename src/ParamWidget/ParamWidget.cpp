@@ -25,15 +25,19 @@ ParamWidget::ParamWidget(QWidget* parent)
     , m_pCameraParamDelegate(new CameraParamDelegate())
 {
     setupUi();
+    // 定高而不是按内容自适应：说明文字长短悬殊，跟着内容长会顶得参数表上下跳
     m_pParamDescript->setFixedHeight(58);
 
     QStringList headerList;
     headerList << "Param" << "Value";
     m_pModel = new CameraParamModel(headerList);
     m_pParamTreeView->setModel(m_pModel);
+    // 交给用户自己拖列宽：参数名长短在不同型号间差别很大，固定宽度总有一边受委屈
     m_pParamTreeView->header()->setSectionResizeMode(QHeaderView::Interactive);
     m_pParamTreeView->header()->setDefaultSectionSize(150);
+    // 委托接管"值"列的渲染与编辑，按参数类型现场造控件，见 createEditor
     m_pParamTreeView->setItemDelegate(m_pCameraParamDelegate);
+    // 此时模型还是空的，这次展开没有实际效果；真正的展开在每次装载后的刷新里
     m_pParamTreeView->expandAll();
     m_pSelectionModel = m_pParamTreeView->selectionModel();
 
@@ -41,8 +45,11 @@ ParamWidget::ParamWidget(QWidget* parent)
 
     connect(m_pSelectionModel, &QItemSelectionModel::selectionChanged,
         this, &ParamWidget::OnUpdataSelection);
+    // 参数区的"改值"与"下发设备"其实是同一个动作：模型一改就发信号，这里立刻写回相机
     connect(m_pModel, &CameraParamModel::SigValueChanged, this, &ParamWidget::writeCameraParam);
 
+    // 只订阅与参数有效性和相机生命周期相关的消息。ListenerManger 既不持有本对象的
+    // 所有权、也没有反注册接口，所以本对象必须先于它析构，否则后续通知会打到野指针。
     ListenerManger::Instance()->registerMessage(MESSAGE::CAMERA_CONNECT
             | MESSAGE::CAMERA_DISCONNECT
             | MESSAGE::CAMERA_ENUMRTION
@@ -111,10 +118,14 @@ void ParamWidget::setupUi()
 
 void ParamWidget::initParamWidget(QVector<CameraParam> paramList)
 {
+    // 入参按值拷贝：每个 param 都会被 readParam 填成带值和权限位的实体副本，
+    // 不碰调用方手里的那份 Schema 模板
     QString serial = CameraContext::Instance()->currentSerial();
 
     for (auto param : paramList) {
 
+        // 读失败不阻断装载：参数仍以 Schema 给的初值进表，只是把错误抛给上层提示。
+        // 三态权限（有效/可读/可写）由 readParam 一并写进 param，只读项的禁编辑即源于此
         auto ret = CameraContext::Instance()->readParam(serial, param);
         if (ret != ZYCLEAR_OK) {
             QString error = param.name() + QString(" read failed");
@@ -129,11 +140,16 @@ void ParamWidget::clearParamWidget()
 {
     m_pModel->clear();
     m_pParamDescript->clear();
+    // reset() 不是多余的：模型加/删行都没发 begin/end 通知，只有整树重挂
+    // 才能让视图丢掉旧行，把选择与展开状态一并作废
     m_pParamTreeView->reset();
 }
 
 void ParamWidget::writeCameraParam(const QModelIndex& index)
 {
+    // 走到这里时模型已经乐观更新过（setData 先发的信号），所以设备写失败不会回滚
+    // 界面：CHECK_RETURN 只把错误抛给 SigUpdateErrorInfo，值就留在界面上。
+    // 要改成"设备确认后才改界面"，得让 setData 先写设备、成功再改模型
     QVariant dataValue = m_pModel->data(index, CameraParamModel::ItemRoles::ParamRole);
     CameraParam curCameraParam = dataValue.value<CameraParam>();
 
@@ -144,6 +160,7 @@ void ParamWidget::writeCameraParam(const QModelIndex& index)
 
 void ParamWidget::RespondMessage(int message)
 {
+    // 枚举与切换相机都会整体换掉参数集合，先清空，等随后的连接消息重新装载
     if ((message & MESSAGE::CAMERA_ENUMRTION) == MESSAGE::CAMERA_ENUMRTION) {
         clearParamWidget();
     }
@@ -158,6 +175,7 @@ void ParamWidget::RespondMessage(int message)
     if ((message & MESSAGE::CAMERA_DISCONNECT) == MESSAGE::CAMERA_DISCONNECT) {
         clearParamWidget();
     }
+    // 采集期间绝大多数相机锁参数，与其逐项按权限位判断，不如整块禁用省事；停止采集再放行
     if ((message & MESSAGE::CAMERA_STARTGRAB) == MESSAGE::CAMERA_STARTGRAB) {
         this->setEnabled(false);
     }
@@ -173,7 +191,15 @@ void ParamWidget::OnUpdataSelection(const QItemSelection& selected, const QItemS
 {
     m_pParamDescript->clear();
 
-    QModelIndex index = selected.indexes().first();
+    // 只取第一个索引去查说明：tips 挂在条目上，同一条目两列取到的内容相同。
+    // 但模型清空 / reset 会带着空选择走到这里，.first() 就成了越界访问，
+    // 所以先判空——"选择变化至少带一个索引"这条视图行为不能当契约使
+    const QModelIndexList selectedIndexes = selected.indexes();
+    if (selectedIndexes.isEmpty()) {
+        return;
+    }
+
+    QModelIndex index = selectedIndexes.first();
     QVariant varValue = m_pParamTreeView->model()->data(index, CameraParamModel::ParamDescriptionRole);
     QString strDescript = varValue.toString();
     m_pParamDescript->append(strDescript);
@@ -181,6 +207,8 @@ void ParamWidget::OnUpdataSelection(const QItemSelection& selected, const QItemS
 
 void ParamWidget::on_Refresh_Button_clicked()
 {
+    // 重挂整树并重新展开：参数值可能被相机自己改掉（自动曝光之类），视图必须
+    // 重新向模型取值；顺带把展开状态复位，避免某些型号分组默认折叠起来
     m_pParamTreeView->reset();
     m_pParamTreeView->expandAll();
 }
