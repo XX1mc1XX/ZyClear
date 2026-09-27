@@ -156,7 +156,7 @@ grep -rn "ControlWidget\*" src/ParamWidget/ src/ViewWidget/    # 期望无输出
 │   ├── main.cpp            程序入口
 │   └── tests/              单元测试
 ├── depends/HikCamera/      海康 SDK 头文件与导入库
-├── docs/                   架构说明、简历归档
+├── docs/                   架构说明与集成设计
 └── .github/workflows/      持续集成
 ```
 

@@ -32,3 +32,7 @@ MvSDKLog/
 .DS_Store
 Thumbs.db
 *.log
+
+# 简历与求职材料属于本地私有内容，不进公开仓库
+docs/resume/
+/简历_*.md
