@@ -17,16 +17,18 @@ CameraFactory* CameraFactory::instance()
     if (!m_instance) {
         QMutexLocker locker(&m_mutex);
         if (!m_instance) {
-            // 正确顺序应是先把注册表填满再对外发布指针；此处先行赋值存在可见性缺口——
-            // 并发下无锁的那层判空可能看到非空指针，却拿到一张还没登记完的表。
-            m_instance = new CameraFactory();
-            m_instance->registerVendor<VirtualCamera>(
+            // 先把两张注册表填满，最后一步才发布指针：指针一旦可见，其余线程
+            // 就会不加锁地查这两张表，此时它们必须已经完整。先前先赋值再登记，
+            // 存在「看到非空指针却拿到一张还没填完的表」的窗口。
+            auto* factory = new CameraFactory();
+            factory->registerVendor<VirtualCamera>(
                 VirtualCamera::VIRTUAL_CAMERA_VENDER);
             // 未接入 SDK 时不注册该品牌
 #ifdef ZYCLEAR_HAS_HIK_SDK
-            m_instance->registerVendor<HikCamera>(
+            factory->registerVendor<HikCamera>(
                 HikCamera::HIK_CAMERA_VENDER);
 #endif
+            m_instance = factory;
         }
     }
     return m_instance;

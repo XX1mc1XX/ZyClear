@@ -36,11 +36,11 @@ GraphicsView::GraphicsView(QWidget* parent)
 
 GraphicsView::~GraphicsView()
 {
-    // scene 既以 this 为 parent、又走了 deleteLater，属于延迟删除；而图元的
-    // 所有权其实在 scene 手上（addItem 已接管），下面这行等于提前把它删掉，
-    // 待 scene 真正析构时会再删一次。
-    m_pScene->deleteLater();
-    delete m_pImageItem;
+    // 回收全部交给 Qt 的父子关系：scene 以 this 为 parent（见 InitWidget），
+    // 图元在 addItem 时已移交给 scene，本对象析构时这条链会自动走完。
+    // 这里刻意不做任何显式 delete —— 原先的 scene->deleteLater() 把删除推迟到
+    // 事件循环（那时本对象可能已销毁），delete m_pImageItem 又与 scene 的所有权
+    // 重复，两行合起来构成一次二次删除。
 }
 
 bool GraphicsView::InitWidget()

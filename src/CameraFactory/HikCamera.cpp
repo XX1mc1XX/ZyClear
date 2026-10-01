@@ -246,10 +246,10 @@ uint32_t HikCamera::getParamList(QVector<CameraParam>& paramList)
         { "AnalogControl", "SharpnessEnable", BOOL, "", QStringLiteral("锐度设置使能") },
         { "AnalogControl", "ContrastRatio", DOUBLE, "", QStringLiteral("对比度设置") },
         { "AnalogControl", "ContrastRatioEnable", BOOL, "", QStringLiteral("对比度设置使能") },
-        { "UserSetControl ", "UserSetSelector", ENUM, "", QStringLiteral("用户参数组选择") },
-        { "UserSetControl ", "UserSetLoad", CMD, "", QStringLiteral("参数组加载") },
-        { "UserSetControl ", "UserSetSave", CMD, "", QStringLiteral("参数组保存") },
-        { "UserSetControl ", "UserSetDefault", ENUM, "", QStringLiteral("默认用户参数组设置") }
+        { "UserSetControl", "UserSetSelector", ENUM, "", QStringLiteral("用户参数组选择") },
+        { "UserSetControl", "UserSetLoad", CMD, "", QStringLiteral("参数组加载") },
+        { "UserSetControl", "UserSetSave", CMD, "", QStringLiteral("参数组保存") },
+        { "UserSetControl", "UserSetDefault", ENUM, "", QStringLiteral("默认用户参数组设置") }
     };
 
     for (auto var : paramMetaInfoList) {
@@ -291,22 +291,34 @@ uint32_t HikCamera::acquire()
 
     // 每次接入都重新枚举，是为了拿一份新鲜的设备信息：插拔过的设备旧信息已失效。
     // 按序列号精确回找目标机，找不到就失败——不退化成“连第一台”，避免多机时连错。
-    // 注意这里对 GigE 与 USB3 都读 union 里 stGigEInfo 的序列号字段，两种设备该字段
-    // 偏移恰好一致才碰巧取到值；这是依赖内存布局的写法，换 SDK 版本可能取到错值。
-    for (int i = 0; i < stDeviceList.nDeviceNum; i++) {
+    // GigE 与 USB3 的设备信息共用 SpecialInfo 这个 union 的不同分支，必须按
+    // nTLayerType 各取各的：两种设备该字段只是偏移恰好一致，依赖它是自找麻烦。
+    bool found = false;
+    for (unsigned int i = 0; i < stDeviceList.nDeviceNum; i++) {
         MV_CC_DEVICE_INFO* cameraInfo = stDeviceList.pDeviceInfo[i];
-        QString serial = (char*)cameraInfo->SpecialInfo.stGigEInfo.chSerialNumber;
+
+        QString serial;
+        if (cameraInfo->nTLayerType == MV_GIGE_DEVICE) {
+            serial = (char*)cameraInfo->SpecialInfo.stGigEInfo.chSerialNumber;
+        } else if (cameraInfo->nTLayerType == MV_USB_DEVICE) {
+            serial = (char*)cameraInfo->SpecialInfo.stUsb3VInfo.chSerialNumber;
+        }
+
         if (serial == Serial()) {
-            m_pDeviceInfo = cameraInfo;
+            // 值拷贝进本对象持有：枚举列表的内存归 SDK 管，下一次枚举（例如依次
+            // 连接多台时另一台的 acquire）就会覆写它；继续引用原节点的话，
+            // 早先那台的 m_pDeviceInfo 会变成悬垂指针，而 connect() 还要用它。
+            m_deviceInfo = *cameraInfo;
+            m_pDeviceInfo = &m_deviceInfo;
+            found = true;
             break;
         }
     }
 
-    if (m_pDeviceInfo == NULL)
+    if (!found)
         return CAMERA_ACQUIRE_FAILED;
 
-    // m_pDeviceInfo 只是 SDK 枚举列表内部的节点，不归本对象所有，绝不能 delete；
-    // CreateHandle 会把设备信息拷进句柄，此后即便枚举列表失效也不影响已建句柄。
+    // m_pDeviceInfo 指向的是上面那份自有副本，CreateHandle 会把设备信息拷进句柄
     nRet = MV_CC_CreateHandle(&m_cameraHandle, m_pDeviceInfo);
     if (MV_OK != nRet) {
         return INVALID_CAMERA_HANDLE;
@@ -322,9 +334,9 @@ uint32_t HikCamera::release()
     MV_CC_DestroyHandle(m_cameraHandle);
     m_cameraHandle = NULL;
 
-    // 设备信息是 SDK 的，不释放，仅断掉本对象的引用；这行注释掉的 delete
-    // 就是踩过坑留下的，不要顺手取消注释。
-    // delete m_pDeviceInfo;
+    // 设备信息是上面那份自有副本，随对象析构回收，这里只断掉本对象的引用。
+    // 它曾被写成指向 SDK 枚举列表的裸指针，那句被注释掉的 delete 就是当年
+    // 误删 SDK 内存留下的；注意 m_deviceInfo 是成员，不能 delete。
     m_pDeviceInfo = NULL;
 
     return ZYCLEAR_OK;
@@ -486,14 +498,14 @@ uint32_t HikCamera::readParam(CameraParam& param)
         return ZYCLEAR_OK;
     }
 
-    // 下列各分支失败时统一回 WRITE_PARAM_FAILED，读路径也用这个码——属既有约定，
-    // 调用方不要据此判断失败方向。
+    // 各分支失败一律回 READ_PARAM_FAILED：读路径与写路径的错误码不再混用，
+    // 调用方可据返回码判断失败方向。
     if (param.type() == INT) {
         QString name = param.name();
         MVCC_INTVALUE value {};
         auto nRet = MV_CC_GetIntValue(m_cameraHandle, name.toLocal8Bit().data(), &value);
         if (nRet != MV_OK)
-            return WRITE_PARAM_FAILED;
+            return READ_PARAM_FAILED;
 
         IntParam varParam = param.GetValue().value<IntParam>();
         varParam.value = value.nCurValue;
@@ -506,7 +518,7 @@ uint32_t HikCamera::readParam(CameraParam& param)
         MVCC_FLOATVALUE value {};
         auto nRet = MV_CC_GetFloatValue(m_cameraHandle, name.toLocal8Bit().data(), &value);
         if (nRet != MV_OK)
-            return WRITE_PARAM_FAILED;
+            return READ_PARAM_FAILED;
 
         DoubleParam varParam = param.GetValue().value<DoubleParam>();
         varParam.value = value.fCurValue;
@@ -523,7 +535,7 @@ uint32_t HikCamera::readParam(CameraParam& param)
 
         auto nRet = MV_CC_GetEnumValue(m_cameraHandle, name.toLocal8Bit().data(), &value);
         if (nRet != MV_OK)
-            return WRITE_PARAM_FAILED;
+            return READ_PARAM_FAILED;
 
         MVCC_ENUMENTRY entryValue {};
         memset(&entryValue, 0, sizeof(MVCC_ENUMENTRY));
@@ -555,7 +567,7 @@ uint32_t HikCamera::readParam(CameraParam& param)
         bool bValue {};
         auto nRet = MV_CC_GetBoolValue(m_cameraHandle, name.toLocal8Bit().data(), &bValue);
         if (nRet != MV_OK)
-            return WRITE_PARAM_FAILED;
+            return READ_PARAM_FAILED;
 
         BoolParam varParam = param.GetValue().value<BoolParam>();
         varParam.value = bValue;
@@ -568,7 +580,7 @@ uint32_t HikCamera::readParam(CameraParam& param)
         MVCC_STRINGVALUE value {};
         auto nRet = MV_CC_GetStringValue(m_cameraHandle, name.toLocal8Bit().data(), &value);
         if (nRet != MV_OK)
-            return WRITE_PARAM_FAILED;
+            return READ_PARAM_FAILED;
 
         StringParam varParam = param.GetValue().value<StringParam>();
         varParam.value = value.chCurValue;

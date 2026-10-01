@@ -8,6 +8,7 @@
 #include <QApplication>
 #include <QDebug>
 #include <QDir>
+#include <algorithm>
 
 CameraContext* CameraContext::m_pContext = Q_NULLPTR;
 
@@ -71,19 +72,25 @@ uint32_t CameraContext::EnumerationCamera(QVector<CameraMetaInfo>& cameraInfos)
     CameraFactory::instance()->enumCameras(infos);
 
     for (const auto& info : infos) {
-        QVector<CameraMetaInfo>::iterator it = std::find(cameraInfos.begin(), cameraInfos.end(), info);
-
-        if (it == cameraInfos.end()) {
+        // 去重只作用于回填给调用方的列表。相机对象必须无条件重建 —— 本函数开头
+        // 刚把整张表清空，若沿用「已在列表里就跳过创建」，第二次枚举时该设备会留在
+        // 列表里却不进 map，之后按序列号寻址一律落到 NOCAMERA_ERROR。
+        if (std::find(cameraInfos.begin(), cameraInfos.end(), info) == cameraInfos.end()) {
             cameraInfos.push_back(info);
-            QString serial = info.Serial;
+        }
 
-            CameraInterface* camera = CameraFactory::instance()->createCamera(info);
-            if (camera) {
-                m_serialCamMap[info.Serial] = camera;   // 对象所有权自此移交门面
-                qDebug() << "创建相机成功:" << info.VenderName << info.Serial;
-            } else {
-                qWarning() << "创建相机失败，不支持的厂商:" << info.VenderName;
-            }
+        // 同一台设备可能经不同传输层被枚举出两次，只建一次，
+        // 否则后建的对象会覆盖 map 里的前一个，前一个再无人释放
+        if (m_serialCamMap.contains(info.Serial)) {
+            continue;
+        }
+
+        CameraInterface* camera = CameraFactory::instance()->createCamera(info);
+        if (camera) {
+            m_serialCamMap[info.Serial] = camera;   // 对象所有权自此移交门面
+            qDebug() << "创建相机成功:" << info.VenderName << info.Serial;
+        } else {
+            qWarning() << "创建相机失败，不支持的厂商:" << info.VenderName;
         }
     }
     return ZYCLEAR_OK;
